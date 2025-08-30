@@ -35,6 +35,7 @@ export interface TableConfig {
   columns: TableColumn[];
   filters?: Record<string, any>;
   filterParams?: Record<string, string>;
+  itemsPerPage?: number; // Frontend controls pagination size
   key?: string;
   actions?: {
     view?: boolean;

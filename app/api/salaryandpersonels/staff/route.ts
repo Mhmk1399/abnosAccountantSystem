@@ -4,7 +4,7 @@ import DetailedAccount from "@/models/accounts/detailedAcounts";
 import { generateDetailedAccountCode } from "@/lib/codeGenerator";
 import connect from "@/lib/data";
 
-// GET: Get all or one staff entry
+// GET: Get all or one staff entry with filters and pagination
 export const GET = async (req: NextRequest) => {
   await connect();
 
@@ -29,8 +29,80 @@ export const GET = async (req: NextRequest) => {
   }
 
   try {
-    const staffMembers = await staff.find();
-    return NextResponse.json({ staff: staffMembers });
+    const { searchParams } = new URL(req.url);
+    
+    // Build filter query
+    const filter: Record<string, unknown> = {};
+    
+    // Handle name filter
+    const name = searchParams.get('name');
+    if (name) {
+      filter.name = { $regex: name, $options: 'i' };
+    }
+    
+    // Handle nationalId filter
+    const nationalId = searchParams.get('nationalId');
+    if (nationalId) {
+      filter.nationalId = { $regex: nationalId, $options: 'i' };
+    }
+    
+    // Handle position filter
+    const position = searchParams.get('position');
+    if (position) {
+      filter.position = { $regex: position, $options: 'i' };
+    }
+    
+    // Handle isActive filter
+    const isActive = searchParams.get('isActive');
+    if (isActive === 'true' || isActive === 'false') {
+      filter.isActive = isActive === 'true';
+    }
+    
+    // Handle ismaried filter
+    const ismaried = searchParams.get('ismaried');
+    if (ismaried === 'true' || ismaried === 'false') {
+      filter.ismaried = ismaried === 'true';
+    }
+    
+    // Handle date range filters for contracthireDate
+    const hireDateFrom = searchParams.get('contracthireDate_from');
+    const hireDateTo = searchParams.get('contracthireDate_to');
+    if (hireDateFrom || hireDateTo) {
+      const dateFilter: { $gte?: Date; $lte?: Date } = {};
+      if (hireDateFrom) dateFilter.$gte = new Date(hireDateFrom);
+      if (hireDateTo) dateFilter.$lte = new Date(hireDateTo);
+      filter.contracthireDate = dateFilter;
+    }
+    
+    // Pagination - with validation
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10')));
+    const skip = (page - 1) * limit;
+    
+    // Get total count for pagination
+    const totalItems = await staff.countDocuments(filter);
+    const totalPages = Math.ceil(totalItems / limit);
+    
+    // Fetch data with filters and pagination
+    const staffMembers = await staff.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+    
+    // Build pagination info
+    const pagination = {
+      currentPage: page,
+      totalPages,
+      totalItems,
+      itemsPerPage: limit,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1
+    };
+    
+    return NextResponse.json({ 
+      staff: staffMembers,
+      pagination 
+    });
   } catch (error) {
     return NextResponse.json(
       { error: "An error occurred: " + error },

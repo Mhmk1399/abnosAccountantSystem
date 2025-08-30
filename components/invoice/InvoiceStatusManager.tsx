@@ -1,12 +1,14 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import DynamicTable from '@/components/global/DynamicTable';
+import TableFilters, { FilterConfig } from '@/components/global/TableFilters';
 import { TableConfig } from '@/types/tables';
 import toast from 'react-hot-toast';
 import type { Invoice } from '@/types/finalTypes';
 
 export default function InvoiceStatusManager() {
+  const [filters, setFilters] = useState<Record<string, string | number>>({});
   const tableRef = useRef<{ refreshData: () => void }>(null);
 
   const updateStatus = async (invoice: Invoice) => {
@@ -37,11 +39,48 @@ export default function InvoiceStatusManager() {
     }
   };
 
+  const filterConfig: FilterConfig = {
+    fields: [
+      {
+        key: "code",
+        label: "کد فاکتور",
+        type: "text",
+        placeholder: "جستجو در کد فاکتور..."
+      },
+      {
+        key: "customer",
+        label: "مشتری",
+        type: "text",
+        placeholder: "جستجو در نام مشتری..."
+      },
+      {
+        key: "status",
+        label: "وضعیت",
+        type: "select",
+        options: [
+          { value: "pending", label: "در انتظار" },
+          { value: "in progress", label: "در حال انجام" },
+          { value: "completed", label: "تکمیل شده" },
+          { value: "cancelled", label: "لغو شده" },
+          { value: "stop production", label: "توقف تولید" }
+        ]
+      },
+      {
+        key: "productionDate",
+        label: "تاریخ تولید",
+        type: "dateRange"
+      }
+    ],
+    onFiltersChange: setFilters
+  };
+
   const tableConfig: TableConfig = {
     title: 'مدیریت وضعیت فاکتورها',
     description: 'مدیریت فاکتورهای در انتظار و بروزرسانی وضعیت آنها',
     endpoint: '/api/invoice',
-    responseHandler: (data) => (data || []).filter((invoice: Invoice) => invoice.status === 'pending'),
+    responseHandler: (data) => data.invoices || [],
+    filters,
+    itemsPerPage: 10,
     columns: [
       {
         key: 'code',
@@ -103,6 +142,7 @@ export default function InvoiceStatusManager() {
 
   return (
     <div className="container mx-auto py-8" dir="rtl">
+      <TableFilters config={filterConfig} />
       <DynamicTable ref={tableRef} config={tableConfig} />
     </div>
   );

@@ -28,6 +28,7 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
     hasNextPage: boolean;
     hasPrevPage: boolean;
   } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
   type SortConfig = { key: string; direction: "asc" | "desc" | string } | null;
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
@@ -41,37 +42,47 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
 
   useEffect(() => {
     fetchData();
-  }, [config.endpoint, config.filters]);
+  }, [config.endpoint, config.filters, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1); // Reset to first page when filters change
+  }, [config.filters]);
 
   const handlePageChange = (page: number) => {
-    const url = new URL(config.endpoint, window.location.origin);
-    url.searchParams.set('page', String(page));
-    const newEndpoint = url.pathname + url.search;
-    
-    // Update the config endpoint and fetch new data
-    config.endpoint = newEndpoint;
-    fetchData();
+    setCurrentPage(page);
   };
 
   const fetchData = async () => {
     try {
       setLoading(true);
 
-      // Build URL with filters
-      let url = config.endpoint;
+      // Build URL with filters and pagination
+      const baseUrl = config.endpoint.split('?')[0]; // Remove existing query params
+      const params = new URLSearchParams();
+      
+      // Add pagination parameters from frontend
+      const itemsPerPage = config.itemsPerPage || 10;
+      params.append('page', String(currentPage));
+      params.append('limit', String(itemsPerPage));
+      
+      // Add filters
       if (config.filters && Object.keys(config.filters).length > 0) {
-        const params = new URLSearchParams();
         Object.entries(config.filters).forEach(([key, value]) => {
           if (value !== undefined && value !== null && value !== "") {
-            params.append(key, String(value));
+            // Handle boolean conversion for isActive
+            if (key === "isActive" && (value === "true" || value === "false")) {
+              params.append(key, value === "true" ? "true" : "false");
+            } else {
+              params.append(key, String(value));
+            }
           }
         });
-        if (params.toString()) {
-          url += `?${params.toString()}`;
-        }
       }
+      
+      const url = `${baseUrl}?${params.toString()}`;
 
       console.log("Fetching URL:", url); // Debug log
+      console.log("Filters being sent:", config.filters); // Debug filters
 
       const options: RequestInit = {
         method: "GET",
@@ -79,6 +90,8 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
       };
       const response = await fetch(url, options);
       const result = await response.json();
+
+      console.log("API Response:", result); // Debug API response
 
       if (!response.ok) {
         throw new Error(result.error || "Failed to fetch data");
@@ -122,6 +135,9 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
       } else if (result.providerReports) {
         // Special case for provider reports API
         setData(result.providerReports || []);
+      } else if (result.fiscalYears) {
+        // Special case for fiscal years API
+        setData(result.fiscalYears || []);
       } else {
         setData(result.data || []);
       }
@@ -690,12 +706,7 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <motion.button
-              onClick={() => {
-                const newUrl = new URL(config.endpoint, window.location.origin);
-                newUrl.searchParams.set('page', String(pagination.currentPage - 1));
-                config.endpoint = newUrl.pathname + newUrl.search;
-                fetchData();
-              }}
+              onClick={() => handlePageChange(pagination.currentPage - 1)}
               disabled={!pagination.hasPrevPage}
               whileHover={pagination.hasPrevPage ? { scale: 1.05 } : {}}
               whileTap={pagination.hasPrevPage ? { scale: 0.95 } : {}}
@@ -711,12 +722,7 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
               {pagination.currentPage} / {pagination.totalPages}
             </div>
             <motion.button
-              onClick={() => {
-                const newUrl = new URL(config.endpoint, window.location.origin);
-                newUrl.searchParams.set('page', String(pagination.currentPage + 1));
-                config.endpoint = newUrl.pathname + newUrl.search;
-                fetchData();
-              }}
+              onClick={() => handlePageChange(pagination.currentPage + 1)}
               disabled={!pagination.hasNextPage}
               whileHover={pagination.hasNextPage ? { scale: 1.05 } : {}}
               whileTap={pagination.hasNextPage ? { scale: 0.95 } : {}}

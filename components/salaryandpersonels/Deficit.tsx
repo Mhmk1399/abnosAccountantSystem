@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import DynamicTable from "@/components/global/DynamicTable";
+import TableFilters, { FilterConfig } from "@/components/global/TableFilters";
 import { TableConfig } from "@/types/tables";
 import { HiOutlineUserAdd } from "react-icons/hi";
 import DynamicModal, { ModalConfig } from "@/components/global/DynamicModal";
@@ -64,6 +65,7 @@ const Deficit: React.FC = () => {
   const [selectedDeficit, setSelectedDeficit] = useState<Deficit | null>(null);
   const [modalConfig, setModalConfig] = useState<ModalConfig | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Record<string, string | number>>({});
   const tableRef = useRef<{ refreshData: () => void }>(null);
   const [staffOptions, setStaffOptions] = useState<
     { value: string; label: string }[]
@@ -165,9 +167,59 @@ const Deficit: React.FC = () => {
     }
   };
 
+  const filterConfig: FilterConfig = {
+    fields: [
+      {
+        key: "staff",
+        label: "کارمند",
+        type: "text",
+        placeholder: "جستجو در نام کارمند..."
+      },
+      {
+        key: "type",
+        label: "نوع کسورات",
+        type: "select",
+        options: [
+          { value: "buy glass", label: "خرید شیشه" },
+          { value: "loanes", label: "وام" },
+          { value: "punishment", label: "جریمه" },
+          { value: "help", label: "مساعده" }
+        ]
+      },
+      {
+        key: "year",
+        label: "سال",
+        type: "text",
+        placeholder: "جستجو در سال..."
+      },
+      {
+        key: "month",
+        label: "ماه",
+        type: "select",
+        options: [
+          { value: "1", label: "فروردین" },
+          { value: "2", label: "اردیبهشت" },
+          { value: "3", label: "خرداد" },
+          { value: "4", label: "تیر" },
+          { value: "5", label: "مرداد" },
+          { value: "6", label: "شهریور" },
+          { value: "7", label: "مهر" },
+          { value: "8", label: "آبان" },
+          { value: "9", label: "آذر" },
+          { value: "10", label: "دی" },
+          { value: "11", label: "بهمن" },
+          { value: "12", label: "اسفند" }
+        ]
+      }
+    ],
+    onFiltersChange: setFilters
+  };
+
   const deficitTableConfig: TableConfig = {
     endpoint: "/api/salaryandpersonels/deficits",
     responseHandler: (res) => res.deficit,
+    filters,
+    itemsPerPage: 10,
     title: "لیست کسورات",
     description: "مدیریت کسورات",
     columns: [
@@ -210,7 +262,30 @@ const Deficit: React.FC = () => {
         render: (value) => Number(value).toLocaleString(),
       },
       { key: "day", label: "روز", sortable: true },
-      { key: "month", label: "ماه", sortable: true },
+      {
+        key: "month",
+        label: "ماه",
+        sortable: true,
+        render: (value: unknown): React.ReactNode => {
+          const monthNames = {
+            1: "فروردین",
+            2: "اردیبهشت",
+            3: "خرداد",
+            4: "تیر",
+            5: "مرداد",
+            6: "شهریور",
+            7: "مهر",
+            8: "آبان",
+            9: "آذر",
+            10: "دی",
+            11: "بهمن",
+            12: "اسفند"
+          };
+          return typeof value === "number" && value >= 1 && value <= 12
+            ? monthNames[value as keyof typeof monthNames]
+            : "-";
+        }
+      },
       { key: "year", label: "سال", sortable: true },
       { key: "description", label: "توضیحات" },
     ],
@@ -283,7 +358,7 @@ const Deficit: React.FC = () => {
   });
 
   return (
-    <div>
+    <div className="container mx-auto py-8" dir="rtl">
       <div className="flex justify-end mb-4">
         <button
           onClick={handleAddClick}
@@ -293,6 +368,7 @@ const Deficit: React.FC = () => {
           افزودن کسورات
         </button>
       </div>
+      <TableFilters config={filterConfig} />
       <DynamicTable ref={tableRef} config={deficitTableConfig} />
       {modalConfig && (
         <DynamicModal

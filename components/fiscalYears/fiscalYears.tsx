@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import DynamicTable from "@/components/global/DynamicTable";
 import DynamicModal from "@/components/global/DynamicModal";
+import TableFilters, { FilterConfig } from "@/components/global/TableFilters";
 import { TableConfig, DynamicTableRef } from "@/types/tables";
 import { ModalConfig } from "@/components/global/DynamicModal";
 import toast from "react-hot-toast";
@@ -25,6 +26,7 @@ export default function FiscalYears() {
     title: "",
     type: "view",
   });
+  const [filters, setFilters] = useState<Record<string, string | number>>({});
   const tableRef = useRef<DynamicTableRef>(null);
 
   const handleView = (fiscalYear: FiscalYear) => {
@@ -136,10 +138,38 @@ export default function FiscalYears() {
     setIsModalOpen(true);
   };
 
+  const filterConfig: FilterConfig = {
+    fields: [
+      {
+        key: "name",
+        label: "نام سال مالی",
+        type: "text",
+        placeholder: "جستجو در نام سال مالی..."
+      },
+      {
+        key: "isActive",
+        label: "وضعیت",
+        type: "select",
+        options: [
+          { value: "true", label: "فعال" },
+          { value: "false", label: "غیرفعال" }
+        ]
+      },
+      {
+        key: "startDate",
+        label: "تاریخ شروع",
+        type: "dateRange"
+      }
+    ],
+    onFiltersChange: setFilters
+  };
+
   const tableConfig: TableConfig = {
     title: "مدیریت سال‌های مالی",
     description: "لیست سال‌های مالی و اطلاعات آنها",
     endpoint: "/api/fiscalYears",
+    filters,
+    itemsPerPage: 10, // Frontend controls: 10 items per page
     columns: [
       {
         key: "name",
@@ -184,6 +214,7 @@ export default function FiscalYears() {
 
   return (
     <div className="container mx-auto py-8" dir="rtl">
+      <TableFilters config={filterConfig} />
       <DynamicTable ref={tableRef} config={tableConfig} />
 
       {isModalOpen && (

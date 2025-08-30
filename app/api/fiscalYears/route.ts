@@ -2,12 +2,66 @@ import data from "@/lib/data";
 import { NextResponse, NextRequest } from "next/server";
 import FiscalYear from "@/models/fiscalYear";
 
-// GET: Retrieve all fiscal years
-export const GET = async () => {
+// GET: Retrieve all fiscal years with filters and pagination
+export const GET = async (req: NextRequest) => {
   await data();
   try {
-    const fiscalYears = await FiscalYear.find();
-    return NextResponse.json({ data: fiscalYears });
+    const { searchParams } = new URL(req.url);
+    
+    // Build filter query
+    const filter: Record<string, unknown> = {};
+    
+    // Handle name filter
+    const name = searchParams.get('name');
+    if (name) {
+      filter.name = { $regex: name, $options: 'i' }; // Case-insensitive search
+    }
+    
+    // Handle isActive filter
+    const isActive = searchParams.get('isActive');
+    if (isActive === 'true' || isActive === 'false') {
+      filter.isActive = isActive === 'true';
+    }
+    
+    // Handle date range filters
+    const startDateFrom = searchParams.get('startDate_from');
+    const startDateTo = searchParams.get('startDate_to');
+    if (startDateFrom || startDateTo) {
+      const dateFilter: { $gte?: Date; $lte?: Date } = {};
+      if (startDateFrom) dateFilter.$gte = new Date(startDateFrom);
+      if (startDateTo) dateFilter.$lte = new Date(startDateTo);
+      filter.startDate = dateFilter;
+    }
+    
+    // Pagination - with validation
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10')));
+    const skip = (page - 1) * limit;
+    
+    // Get total count for pagination
+    const totalItems = await FiscalYear.countDocuments(filter);
+    const totalPages = Math.ceil(totalItems / limit);
+    
+    // Fetch data with filters and pagination
+    const fiscalYears = await FiscalYear.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+    
+    // Build pagination info
+    const pagination = {
+      currentPage: page,
+      totalPages,
+      totalItems,
+      itemsPerPage: limit,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1
+    };
+    
+    return NextResponse.json({ 
+      fiscalYears,
+      pagination 
+    });
   } catch (error) {
     console.error("Error fetching fiscal years:", error);
     return NextResponse.json(

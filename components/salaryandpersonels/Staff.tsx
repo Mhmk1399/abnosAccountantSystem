@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from "react";
 import DynamicTable from "@/components/global/DynamicTable";
+import TableFilters, { FilterConfig } from "@/components/global/TableFilters";
 import { TableConfig } from "@/types/tables";
 import { HiOutlineUserAdd } from "react-icons/hi";
 import DynamicModal, { ModalConfig } from "@/components/global/DynamicModal";
@@ -43,6 +44,7 @@ const Staff: React.FC = () => {
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [modalConfig, setModalConfig] = useState<ModalConfig | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<Record<string, string | number>>({});
   const tableRef = useRef<{ refreshData: () => void }>(null);
 
   const handleAddClick = () => {
@@ -169,9 +171,58 @@ const Staff: React.FC = () => {
     }
   };
 
+  const filterConfig: FilterConfig = {
+    fields: [
+      {
+        key: "name",
+        label: "نام کارمند",
+        type: "text",
+        placeholder: "جستجو در نام کارمند..."
+      },
+      {
+        key: "nationalId",
+        label: "کد ملی",
+        type: "text",
+        placeholder: "جستجو در کد ملی..."
+      },
+      {
+        key: "position",
+        label: "موقعیت شغلی",
+        type: "text",
+        placeholder: "جستجو در موقعیت شغلی..."
+      },
+      {
+        key: "isActive",
+        label: "وضعیت فعالیت",
+        type: "select",
+        options: [
+          { value: "true", label: "فعال" },
+          { value: "false", label: "غیرفعال" }
+        ]
+      },
+      {
+        key: "ismaried",
+        label: "وضعیت تاهل",
+        type: "select",
+        options: [
+          { value: "true", label: "متاهل" },
+          { value: "false", label: "مجرد" }
+        ]
+      },
+      {
+        key: "contracthireDate",
+        label: "تاریخ استخدام",
+        type: "dateRange"
+      }
+    ],
+    onFiltersChange: setFilters
+  };
+
   const staffTableConfig: TableConfig = {
     endpoint: "/api/salaryandpersonels/staff",
     responseHandler: (res) => res.staff,
+    filters,
+    itemsPerPage: 10,
     title: "لیست کارمندان",
     description: "مدیریت کارمندان",
     columns: [
@@ -378,7 +429,7 @@ const Staff: React.FC = () => {
   });
 
   return (
-    <div>
+    <div className="container mx-auto py-8" dir="rtl">
       <div className="flex justify-end mb-4">
         <button
           onClick={handleAddClick}
@@ -388,6 +439,7 @@ const Staff: React.FC = () => {
           افزودن کارمند
         </button>
       </div>
+      <TableFilters config={filterConfig} />
       <DynamicTable ref={tableRef} config={staffTableConfig} />
       {modalConfig && (
         <DynamicModal

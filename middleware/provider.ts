@@ -4,22 +4,48 @@ import { generateSequentialCode } from "@/utils/codeGenerator";
 import { NextRequest, NextResponse } from "next/server";
 import { createDetailed } from "@/middleware/detailed";
 
-// Get all providers
+// Get all providers with filters and pagination
 export async function getProviders(req?: NextRequest) {
   try {
-    // Get pagination parameters
+    // Get pagination and filter parameters
     const { searchParams } = req ? new URL(req.url) : { searchParams: new URLSearchParams() };
-    const page = parseInt(searchParams.get("page") || "1");
-    const limit = parseInt(searchParams.get("limit") || "5");
+    
+    // Build filter query
+    const filter: any = {};
+    
+    // Handle name filter
+    const name = searchParams.get('name');
+    if (name) {
+      filter.name = { $regex: name, $options: 'i' };
+    }
+    
+    // Handle code filter
+    const code = searchParams.get('code');
+    if (code) {
+      filter.code = { $regex: code, $options: 'i' };
+    }
+    
+    // Handle date range filters for createdAt
+    const createdAtFrom = searchParams.get('createdAt_from');
+    const createdAtTo = searchParams.get('createdAt_to');
+    if (createdAtFrom || createdAtTo) {
+      filter.createdAt = {};
+      if (createdAtFrom) filter.createdAt.$gte = new Date(createdAtFrom);
+      if (createdAtTo) filter.createdAt.$lte = new Date(createdAtTo);
+    }
+    
+    // Pagination - with validation
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10')));
     const skip = (page - 1) * limit;
 
-    const providers = await Provider.find({})
+    const providers = await Provider.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
 
     // Get total count for pagination
-    const totalCount = await Provider.countDocuments();
+    const totalCount = await Provider.countDocuments(filter);
     const totalPages = Math.ceil(totalCount / limit);
 
     return NextResponse.json({

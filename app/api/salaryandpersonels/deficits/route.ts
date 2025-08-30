@@ -2,7 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import deficit from "@/models/salaryandpersonels/deficit";
 import connect from "@/lib/data";
 
-// GET: Get all or one deficit entry
+// GET: Get all or one deficit entry with filters and pagination
 export const GET = async (req: NextRequest) => {
   await connect();
 
@@ -27,8 +27,76 @@ export const GET = async (req: NextRequest) => {
   }
 
   try {
-    const deficits = await deficit.find().populate('staff');
-    return NextResponse.json({ deficit: deficits });
+    const { searchParams } = new URL(req.url);
+    
+    // Build filter query
+    const filter: Record<string, unknown> = {};
+    
+    // Handle staff filter (search by name)
+    const staff = searchParams.get('staff');
+    if (staff) {
+      // First find staff members matching the name
+      const staffModel = await import('@/models/salaryandpersonels/staff');
+      const matchingStaff = await staffModel.default.find({
+        name: { $regex: staff, $options: 'i' }
+      }).select('_id');
+      
+      if (matchingStaff.length > 0) {
+        filter.staff = { $in: matchingStaff.map(s => s._id) };
+      } else {
+        // If no staff found, return empty result
+        filter.staff = null;
+      }
+    }
+    
+    // Handle type filter
+    const type = searchParams.get('type');
+    if (type) {
+      filter.type = type;
+    }
+    
+    // Handle year filter
+    const year = searchParams.get('year');
+    if (year) {
+      filter.year = parseInt(year);
+    }
+    
+    // Handle month filter
+    const month = searchParams.get('month');
+    if (month) {
+      filter.month = parseInt(month);
+    }
+    
+    // Pagination - with validation
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10')));
+    const skip = (page - 1) * limit;
+    
+    // Get total count for pagination
+    const totalItems = await deficit.countDocuments(filter);
+    const totalPages = Math.ceil(totalItems / limit);
+    
+    // Fetch data with filters and pagination
+    const deficits = await deficit.find(filter)
+      .populate('staff')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+    
+    // Build pagination info
+    const pagination = {
+      currentPage: page,
+      totalPages,
+      totalItems,
+      itemsPerPage: limit,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1
+    };
+    
+    return NextResponse.json({ 
+      deficit: deficits,
+      pagination 
+    });
   } catch (error) {
     return NextResponse.json(
       { error: "An error occurred: " + error },
