@@ -152,9 +152,9 @@ export const DailyBookProvider: React.FC<DailyBookProviderProps> = ({
       const { fixedAccounts } = await fixedAccountsRes.json();
       const { detailedAccounts } = await detailedAccountsRes.json();
 
-      // Fiscal years API returns data in a different format
+      // Fiscal years API returns data in this format: { fiscalYears: [...], pagination: {...} }
       const fiscalYearsData = await fiscalYearsRes.json();
-      const fiscalYears = fiscalYearsData.data || [];
+      const fiscalYears = fiscalYearsData.fiscalYears || [];
 
       console.log("Fetched fiscal years:", fiscalYears);
 
