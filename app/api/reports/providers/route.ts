@@ -6,14 +6,29 @@ export async function GET(request: NextRequest) {
   try {
     await connect();
 
-    // Get pagination parameters
+    // Get pagination and filter parameters
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
     const skip = (page - 1) * limit;
 
-    console.log('Starting provider reports aggregation...');
-    const providerReports = await Inventory.aggregate([
+    // Filter parameters
+    const code = searchParams.get("code");
+    const name = searchParams.get("name");
+    const purchaseAmountFrom = searchParams.get("purchaseAmountFrom");
+    const purchaseAmountTo = searchParams.get("purchaseAmountTo");
+
+    // Build match stage for filters
+    const matchStage: any = {};
+    if (code) {
+      matchStage["providerInfo.code"] = { $regex: code, $options: "i" };
+    }
+    if (name) {
+      matchStage["providerInfo.name"] = { $regex: name, $options: "i" };
+    }
+
+    console.log("Starting provider reports aggregation...");
+    const pipeline: any[] = [
       {
         $lookup: {
           from: "providers",
@@ -23,6 +38,14 @@ export async function GET(request: NextRequest) {
         },
       },
       { $unwind: "$providerInfo" },
+    ];
+
+    // Add match stage if filters exist
+    if (Object.keys(matchStage).length > 0) {
+      pipeline.push({ $match: matchStage });
+    }
+
+    pipeline.push(
       {
         $group: {
           _id: "$providerInfo._id",
@@ -38,16 +61,42 @@ export async function GET(request: NextRequest) {
       },
       {
         $addFields: {
-          remainingAmount: { $subtract: ["$purchaseAmount", "$usedAmount"] }
+          remainingAmount: { $subtract: ["$purchaseAmount", "$usedAmount"] },
+        },
+      }
+    );
+
+    // Add purchase amount range filter after grouping
+    if (purchaseAmountFrom || purchaseAmountTo) {
+      const purchaseAmountMatch: any = {};
+      if (purchaseAmountFrom) {
+        purchaseAmountMatch.purchaseAmount = {
+          $gte: parseFloat(purchaseAmountFrom),
+        };
+      }
+      if (purchaseAmountTo) {
+        if (purchaseAmountMatch.purchaseAmount) {
+          purchaseAmountMatch.purchaseAmount.$lte =
+            parseFloat(purchaseAmountTo);
+        } else {
+          purchaseAmountMatch.purchaseAmount = {
+            $lte: parseFloat(purchaseAmountTo),
+          };
         }
-      },
+      }
+      pipeline.push({ $match: purchaseAmountMatch });
+    }
+
+    pipeline.push(
       { $sort: { purchaseAmount: -1 } },
       { $skip: skip },
-      { $limit: limit },
-    ]);
+      { $limit: limit }
+    );
 
-    // Get total count
-    const totalCountResult = await Inventory.aggregate([
+    const providerReports = await Inventory.aggregate(pipeline);
+
+    // Get total count with same filters
+    const countPipeline: any[] = [
       {
         $lookup: {
           from: "providers",
@@ -57,18 +106,50 @@ export async function GET(request: NextRequest) {
         },
       },
       { $unwind: "$providerInfo" },
-      {
-        $group: {
-          _id: "$providerInfo._id",
-        },
+    ];
+
+    if (Object.keys(matchStage).length > 0) {
+      countPipeline.push({ $match: matchStage });
+    }
+
+    countPipeline.push({
+      $group: {
+        _id: "$providerInfo._id",
+        purchaseAmount: { $sum: { $multiply: ["$count", "$buyPrice"] } },
       },
-      { $count: "total" }
-    ]);
-    
+    });
+
+    if (purchaseAmountFrom || purchaseAmountTo) {
+      const purchaseAmountMatch: any = {};
+      if (purchaseAmountFrom) {
+        purchaseAmountMatch.purchaseAmount = {
+          $gte: parseFloat(purchaseAmountFrom),
+        };
+      }
+      if (purchaseAmountTo) {
+        if (purchaseAmountMatch.purchaseAmount) {
+          purchaseAmountMatch.purchaseAmount.$lte =
+            parseFloat(purchaseAmountTo);
+        } else {
+          purchaseAmountMatch.purchaseAmount = {
+            $lte: parseFloat(purchaseAmountTo),
+          };
+        }
+      }
+      countPipeline.push({ $match: purchaseAmountMatch });
+    }
+
+    countPipeline.push({ $count: "total" });
+
+    const totalCountResult = await Inventory.aggregate(countPipeline);
+
     const totalCount = totalCountResult[0]?.total || 0;
     const totalPages = Math.ceil(totalCount / limit);
 
-    console.log('Provider reports result:', { count: providerReports.length, totalCount });
+    console.log("Provider reports result:", {
+      count: providerReports.length,
+      totalCount,
+    });
 
     return NextResponse.json({
       providerReports,

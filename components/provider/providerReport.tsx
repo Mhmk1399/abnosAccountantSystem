@@ -8,16 +8,24 @@ const columns: TableColumn[] = [
     key: "code",
     label: "کد تامین کننده",
     sortable: true,
+    filterable: true,
+    filterType: "text",
+    placeholder: "جستجو کد",
   },
   {
     key: "name",
     label: "نام تامین کننده",
     sortable: true,
+    filterable: true,
+    filterType: "text",
+    placeholder: "جستجو نام",
   },
   {
     key: "purchaseAmount",
     label: "مبلغ خریداری شده",
     sortable: true,
+    filterable: true,
+    filterType: "numberRange",
     render: (value) => `${Number(value || 0).toLocaleString("fa-IR")} ریال`,
   },
   {
@@ -35,7 +43,6 @@ const columns: TableColumn[] = [
 ];
 
 const ProviderReport: React.FC = () => {
-
   return (
     <div className="p-6">
       <DynamicTable
@@ -43,9 +50,10 @@ const ProviderReport: React.FC = () => {
           title: "گزارش تامین کنندگان",
           endpoint: "/api/reports/providers",
           columns: columns,
+          enableFilters: true,
           responseHandler: (response) => {
             return response.providerReports || [];
-          }
+          },
         }}
       />
     </div>
