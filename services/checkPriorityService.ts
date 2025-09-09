@@ -1,38 +1,4 @@
-export interface Check {
-  _id: string;
-  checkNumber: number;
-  seryNumber: number;
-  fromBank: Array<{
-    shobe?: string;
-    name?: string;
-    accountNumber?: string;
-    _id?: string;
-  }>;
-  status:
-    | "nazeSandogh"
-    | "darJaryanVosool"
-    | "vosoolShode"
-    | "bargashti"
-    | "enteghalDadeShode";
-  inboxStatus?:
-    | "darJaryanVosool"
-    | "vosoolShode"
-    | "bargashti"
-    | "enteghalDadeShode"
-    | null;
-  toBank: string;
-  amount: number;
-  dueDate: string;
-  description?: string;
-  documentNumber?: string;
-  paidBy: string | { _id: string; name: string; code: string };
-  payTo: { _id: string; name: string; code: string };
-  receiverName?: string;
-  senderName?: string;
-  type: "income" | "outcome";
-  createdAt: string;
-  updatedAt: string;
-}
+import { Check } from "@/types/type";
 
 export interface CheckPriority {
   level: "critical" | "high" | "medium" | "low";

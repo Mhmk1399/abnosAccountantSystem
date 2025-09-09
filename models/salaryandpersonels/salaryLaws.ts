@@ -13,6 +13,7 @@ export interface ISalaryLaws extends Document {
   holidayRate: number;
   taxRate: number;
   insuranceRate: number;
+  MarriageAllowance: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -20,9 +21,8 @@ export interface ISalaryLaws extends Document {
 const SalaryLawsSchema: Schema = new Schema(
   {
     year: {
-      type: Number,
-      required: true,
-      unique: true,
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "FiscalYear",
     },
     workHoursPerDay: {
       type: Number,
@@ -70,10 +70,10 @@ const SalaryLawsSchema: Schema = new Schema(
     MarriageAllowance: {
       type: Number,
     },
-    taxStandard:{
-      type:Number,
-      default: 20000000
-    }
+    taxStandard: {
+      type: Number,
+      default: 20000000,
+    },
   },
   {
     timestamps: true,

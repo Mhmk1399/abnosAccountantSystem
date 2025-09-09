@@ -57,6 +57,7 @@ const StaffSchema = new mongoose.Schema({
   position: {
     type: String,
     required: true,
+    enum:['factory','office','management']
   },
   workplace: {
     type: String,

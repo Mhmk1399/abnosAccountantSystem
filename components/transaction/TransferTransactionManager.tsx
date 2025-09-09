@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import DatePicker, { DateObject } from "react-multi-date-picker";
@@ -14,46 +14,8 @@ import {
 } from "react-icons/hi";
 import { useTableToPng } from "../../hooks/useTableToPng";
 import { useDailyBook } from "@/contexts/DailyBookContext";
-
-interface Bank {
-  _id: string;
-  name: string;
-  branchName: string;
-  accountNumber: string;
-  ownerName: string;
-}
-
-interface TransferTransaction {
-  _id: string;
-  ourBank:
-    | {
-        _id: string;
-        name: string;
-        branchName: string;
-        accountNumber: string;
-      }
-    | string;
-  paidBy:
-    | {
-        _id: string;
-        name: string;
-        code: string;
-      }
-    | string;
-  payTo:
-    | {
-        _id: string;
-        name: string;
-        code: string;
-      }
-    | string;
-  customerBank?: string;
-  transferReference: string;
-  transferDate: string;
-  type: "income" | "outcome";
-  createdAt: string;
-  updatedAt: string;
-}
+import { useTransfers } from "@/hooks/useTransfer";
+import { Bank, TransferTransaction } from "@/types/type";
 
 const TransferTransactionManager: React.FC = () => {
   const { detailedAccounts } = useDailyBook();
@@ -62,17 +24,12 @@ const TransferTransactionManager: React.FC = () => {
     generateTablePng,
     generateSelectedRowsPng,
     isGenerating,
-    error,
+    error: pngError,
   } = useTableToPng();
-  const [transfers, setTransfers] = useState<TransferTransaction[]>([]);
-  const [filteredTransfers, setFilteredTransfers] = useState<
-    TransferTransaction[]
-  >([]);
   const [selectedTransfers, setSelectedTransfers] = useState<Set<string>>(
     new Set()
   );
   const [banks, setBanks] = useState<Bank[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedTransfer, setSelectedTransfer] =
     useState<TransferTransaction | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -85,112 +42,77 @@ const TransferTransactionManager: React.FC = () => {
     type: "income" as "income" | "outcome",
     paidBy: "",
     payTo: "",
+    amount: 0,
   });
 
-  const [filters, setFilters] = useState({
-    dateFrom: null as DateObject | null,
-    dateTo: null as DateObject | null,
-    fromBank: "",
-    toBank: "",
-    type: "all" as string,
-    paidBy: "",
-    payTo: "",
+  // Filter states
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<Date | null>(null);
+  const [dateTo, setDateTo] = useState<Date | null>(null);
+  const [bankFilter, setBankFilter] = useState<string>("");
+  const [paidByFilter, setPaidByFilter] = useState<string>("");
+  const [payToFilter, setPayToFilter] = useState<string>("");
+  const [transferReferenceFilter, setTransferReferenceFilter] =
+    useState<string>("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [recordsPerPage] = useState(10);
+
+  // Fetch transfers using custom hook
+  const {
+    transfers,
+    pagination,
+    isLoading,
+    error: swrError,
+    mutate,
+  } = useTransfers({
+    currentPage,
+    recordsPerPage,
+    typeFilter,
+    bankFilter,
+    paidByFilter,
+    payToFilter,
+    transferReferenceFilter,
+    dateFrom,
+    dateTo,
   });
 
   useEffect(() => {
-    fetchTransfers();
     fetchBanks();
   }, []);
 
+  // Reset page when filters change
   useEffect(() => {
-    applyFilters();
-  }, [transfers, filters]);
-
-  const fetchTransfers = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch("/api/transactions/transfer");
-      const data = await response.json();
-      setTransfers(data.transferTransactions || []);
-      setFilteredTransfers(data.transferTransactions || []);
-    } catch (error) {
-      console.log(error);
-
-      toast.error("خطا در دریافت لیست تراکنشهای انتقالی");
-      setTransfers([]);
-      setFilteredTransfers([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+    setCurrentPage(1);
+  }, [
+    typeFilter,
+    bankFilter,
+    paidByFilter,
+    payToFilter,
+    transferReferenceFilter,
+    dateFrom,
+    dateTo,
+  ]);
 
   const fetchBanks = async () => {
     try {
       const response = await fetch("/api/transactions/bank");
       if (response.ok) {
         const data = await response.json();
-        setBanks(data);
+        setBanks(data.banks || data);
       }
     } catch (error) {
       console.log(error);
-
       toast.error("خطا در دریافت لیست بانکها");
     }
   };
 
-  const applyFilters = () => {
-    let filtered = [...transfers];
-
-    if (filters.dateFrom) {
-      const fromDate = filters.dateFrom.toDate();
-      filtered = filtered.filter(
-        (transfer) => new Date(transfer.transferDate) >= fromDate
-      );
-    }
-
-    if (filters.dateTo) {
-      const toDate = filters.dateTo.toDate();
-      filtered = filtered.filter(
-        (transfer) => new Date(transfer.transferDate) <= toDate
-      );
-    }
-
-    if (filters.toBank) {
-      filtered = filtered.filter((transfer) => {
-        const bankName =
-          typeof transfer.ourBank === "object"
-            ? transfer.ourBank.name
-            : transfer.ourBank;
-        return bankName === filters.toBank;
-      });
-    }
-
-    if (filters.type !== "all") {
-      filtered = filtered.filter((transfer) => transfer.type === filters.type);
-    }
-
-    if (filters.paidBy) {
-      filtered = filtered.filter((transfer) => {
-        const paidById =
-          typeof transfer.paidBy === "object"
-            ? transfer.paidBy._id
-            : transfer.paidBy;
-        return paidById === filters.paidBy;
-      });
-    }
-
-    if (filters.payTo) {
-      filtered = filtered.filter((transfer) => {
-        const payToId =
-          typeof transfer.payTo === "object"
-            ? transfer.payTo._id
-            : transfer.payTo;
-        return payToId === filters.payTo;
-      });
-    }
-
-    setFilteredTransfers(filtered);
-  };
+  // Calculate total amount
+  const totalAmount = useMemo(() => {
+    return transfers.reduce((sum: number, transfer: TransferTransaction) => {
+      // Assuming transfers have an amount field, if not available, return 0
+      return sum + (transfer.amount || 0);
+    }, 0);
+  }, [transfers]);
 
   const handleEdit = (transfer: TransferTransaction) => {
     setSelectedTransfer(transfer);
@@ -205,6 +127,7 @@ const TransferTransactionManager: React.FC = () => {
         persian_fa
       ),
       type: transfer.type,
+      amount: transfer.amount || 0,
       paidBy:
         typeof transfer.paidBy === "object"
           ? transfer.paidBy._id
@@ -229,6 +152,7 @@ const TransferTransactionManager: React.FC = () => {
         paidBy: editFormData.paidBy,
         payTo: editFormData.payTo,
         ourBank: editFormData.selectedBankId,
+        amount: editFormData.amount,
       };
 
       const response = await fetch(`/api/transactions/transfer`, {
@@ -244,7 +168,7 @@ const TransferTransactionManager: React.FC = () => {
         toast.success("تراکنش با موفقیت به‌روزرسانی شد");
         setIsEditModalOpen(false);
         setSelectedTransfer(null);
-        fetchTransfers();
+        mutate();
       } else {
         toast.error("خطا در به‌روزرسانی تراکنش");
       }
@@ -266,9 +190,7 @@ const TransferTransactionManager: React.FC = () => {
         },
       });
       toast.success("تراکنش با موفقیت حذف شد");
-      setTransfers(
-        transfers.filter((transfer) => transfer._id !== selectedTransfer._id)
-      );
+      mutate();
       setIsDeleteModalOpen(false);
       setSelectedTransfer(null);
     } catch (error) {
@@ -277,29 +199,30 @@ const TransferTransactionManager: React.FC = () => {
     }
   };
 
-  const handleFilterChange = (key: string, value: unknown) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-  };
-
   const clearFilters = () => {
-    setFilters({
-      dateFrom: null,
-      dateTo: null,
-      fromBank: "",
-      toBank: "",
-      type: "all",
-      paidBy: "",
-      payTo: "",
-    });
+    setTypeFilter("all");
+    setDateFrom(null);
+    setDateTo(null);
+    setBankFilter("");
+    setPaidByFilter("");
+    setPayToFilter("");
+    setTransferReferenceFilter("");
+    setCurrentPage(1);
   };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("fa-IR");
   };
 
+  // Format amount with commas
+  const formatAmount = (amount: number) => {
+    return amount.toLocaleString("fa-IR");
+  };
+
   const handleRowPng = (transfer: TransferTransaction) => {
     const headers = [
       "#",
+      "مقدار انتقال",
       "شماره پیگیری",
       "بانک ما",
       "پرداخت کننده",
@@ -309,7 +232,10 @@ const TransferTransactionManager: React.FC = () => {
       "تاریخ ایجاد",
     ];
     const rowData = {
-      index: filteredTransfers.findIndex((t) => t._id === transfer._id) + 1,
+      index:
+        transfers.findIndex(
+          (t: TransferTransaction) => t._id === transfer._id
+        ) + 1,
       transferReference: transfer.transferReference || "نامشخص",
       ourBank:
         typeof transfer.ourBank === "object" ? transfer.ourBank.name : "نامشخص",
@@ -324,6 +250,7 @@ const TransferTransactionManager: React.FC = () => {
       transferDate: formatDate(transfer.transferDate),
       type: transfer.type === "income" ? "دریافتی" : "پرداختی",
       createdAt: formatDate(transfer.createdAt),
+      amount: transfer.amount || 0,
     };
     generateRowPng(rowData, headers, {
       filename: `transfer-${transfer.transferReference}-${Date.now()}.png`,
@@ -334,6 +261,7 @@ const TransferTransactionManager: React.FC = () => {
   const handleTablePng = () => {
     const headers = [
       "#",
+      "مقدار انتقال",
       "شماره پیگیری",
       "بانک ما",
       "پرداخت کننده",
@@ -342,23 +270,28 @@ const TransferTransactionManager: React.FC = () => {
       "نوع",
       "تاریخ ایجاد",
     ];
-    const tableData = filteredTransfers.map((transfer, idx) => ({
-      index: idx + 1,
-      transferReference: transfer.transferReference || "نامشخص",
-      ourBank:
-        typeof transfer.ourBank === "object" ? transfer.ourBank.name : "نامشخص",
-      paidBy:
-        typeof transfer.paidBy === "object"
-          ? `${transfer.paidBy.name} (${transfer.paidBy.code})`
-          : "نامشخص",
-      payTo:
-        typeof transfer.payTo === "object"
-          ? `${transfer.payTo.name} (${transfer.payTo.code})`
-          : "نامشخص",
-      transferDate: formatDate(transfer.transferDate),
-      type: transfer.type === "income" ? "دریافتی" : "پرداختی",
-      createdAt: formatDate(transfer.createdAt),
-    }));
+    const tableData = transfers.map(
+      (transfer: TransferTransaction, idx: number) => ({
+        index: idx + 1,
+        transferReference: transfer.transferReference || "نامشخص",
+        ourBank:
+          typeof transfer.ourBank === "object"
+            ? transfer.ourBank.name
+            : "نامشخص",
+        paidBy:
+          typeof transfer.paidBy === "object"
+            ? `${transfer.paidBy.name} (${transfer.paidBy.code})`
+            : "نامشخص",
+        payTo:
+          typeof transfer.payTo === "object"
+            ? `${transfer.payTo.name} (${transfer.payTo.code})`
+            : "نامشخص",
+        transferDate: formatDate(transfer.transferDate),
+        type: transfer.type === "income" ? "دریافتی" : "پرداختی",
+        createdAt: formatDate(transfer.createdAt),
+        amount: transfer.amount || 0,
+      })
+    );
     generateTablePng(tableData, headers, {
       filename: `transfers-table-${Date.now()}.png`,
       backgroundColor: "#ffffff",
@@ -378,16 +311,19 @@ const TransferTransactionManager: React.FC = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedTransfers.size === filteredTransfers.length) {
+    if (selectedTransfers.size === transfers.length) {
       setSelectedTransfers(new Set());
     } else {
-      setSelectedTransfers(new Set(filteredTransfers.map((t) => t._id)));
+      setSelectedTransfers(
+        new Set(transfers.map((t: TransferTransaction) => t._id))
+      );
     }
   };
 
   const handleSelectedRowsPng = () => {
     const headers = [
       "#",
+      "مقدار انتقال",
       "شماره پیگیری",
       "بانک ما",
       "پرداخت کننده",
@@ -396,9 +332,11 @@ const TransferTransactionManager: React.FC = () => {
       "نوع",
       "تاریخ ایجاد",
     ];
-    const selectedData = filteredTransfers
-      .filter((transfer) => selectedTransfers.has(transfer._id))
-      .map((transfer, idx) => ({
+    const selectedData = transfers
+      .filter((transfer: TransferTransaction) =>
+        selectedTransfers.has(transfer._id)
+      )
+      .map((transfer: TransferTransaction, idx: number) => ({
         index: idx + 1,
         transferReference: transfer.transferReference || "نامشخص",
         ourBank:
@@ -416,6 +354,7 @@ const TransferTransactionManager: React.FC = () => {
         transferDate: formatDate(transfer.transferDate),
         type: transfer.type === "income" ? "دریافتی" : "پرداختی",
         createdAt: formatDate(transfer.createdAt),
+        amount: transfer.amount || 0,
       }));
     generateSelectedRowsPng(selectedData, headers, {
       filename: `selected-transfers-${Date.now()}.png`,
@@ -435,7 +374,7 @@ const TransferTransactionManager: React.FC = () => {
           <div className="flex gap-2">
             <button
               onClick={handleTablePng}
-              disabled={isGenerating || filteredTransfers.length === 0}
+              disabled={isGenerating || transfers.length === 0}
               className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
             >
               {isGenerating ? (
@@ -460,9 +399,11 @@ const TransferTransactionManager: React.FC = () => {
           </div>
         </div>
 
-        {error && (
+        {(pngError || swrError) && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-600 text-sm">{error}</p>
+            <p className="text-red-600 text-sm">
+              {pngError || swrError?.message}
+            </p>
           </div>
         )}
 
@@ -474,8 +415,8 @@ const TransferTransactionManager: React.FC = () => {
                 فیلتر بر اساس نوع
               </label>
               <select
-                value={filters.type}
-                onChange={(e) => handleFilterChange("type", e.target.value)}
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="all">همه انواع</option>
@@ -490,8 +431,8 @@ const TransferTransactionManager: React.FC = () => {
               <DatePicker
                 calendar={persian}
                 locale={persian_fa}
-                value={filters.dateFrom}
-                onChange={(date) => handleFilterChange("dateFrom", date)}
+                value={dateFrom}
+                onChange={(date) => setDateFrom(date?.toDate() || null)}
                 placeholder="از تاریخ"
                 format="YYYY/MM/DD"
                 inputClass="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -504,8 +445,8 @@ const TransferTransactionManager: React.FC = () => {
               <DatePicker
                 calendar={persian}
                 locale={persian_fa}
-                value={filters.dateTo}
-                onChange={(date) => handleFilterChange("dateTo", date)}
+                value={dateTo}
+                onChange={(date) => setDateTo(date?.toDate() || null)}
                 placeholder="تا تاریخ"
                 format="YYYY/MM/DD"
                 inputClass="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -516,8 +457,8 @@ const TransferTransactionManager: React.FC = () => {
                 فیلتر بر اساس بانک
               </label>
               <select
-                value={filters.toBank}
-                onChange={(e) => handleFilterChange("toBank", e.target.value)}
+                value={bankFilter}
+                onChange={(e) => setBankFilter(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">همه بانک ها</option>
@@ -533,8 +474,8 @@ const TransferTransactionManager: React.FC = () => {
                 پرداخت کننده
               </label>
               <select
-                value={filters.paidBy}
-                onChange={(e) => handleFilterChange("paidBy", e.target.value)}
+                value={paidByFilter}
+                onChange={(e) => setPaidByFilter(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">همه حسابها</option>
@@ -553,8 +494,8 @@ const TransferTransactionManager: React.FC = () => {
                 دریافت کننده
               </label>
               <select
-                value={filters.payTo}
-                onChange={(e) => handleFilterChange("payTo", e.target.value)}
+                value={payToFilter}
+                onChange={(e) => setPayToFilter(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">همه حسابها</option>
@@ -584,12 +525,12 @@ const TransferTransactionManager: React.FC = () => {
 
         {/* Transfers Table */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          {loading ? (
+          {isLoading ? (
             <div className="p-8 text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
               <p className="mt-4 text-gray-600">در حال دریافت اطلاعات...</p>
             </div>
-          ) : filteredTransfers.length === 0 ? (
+          ) : transfers.length === 0 ? (
             <div className="p-8 text-center">
               <p className="text-gray-500">تراکنش انتقالی یافت نشد</p>
             </div>
@@ -605,8 +546,8 @@ const TransferTransactionManager: React.FC = () => {
                       <input
                         type="checkbox"
                         checked={
-                          selectedTransfers.size === filteredTransfers.length &&
-                          filteredTransfers.length > 0
+                          selectedTransfers.size === transfers.length &&
+                          transfers.length > 0
                         }
                         onChange={handleSelectAll}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -617,6 +558,9 @@ const TransferTransactionManager: React.FC = () => {
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       شماره پیگیری
+                    </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      مقدار انتقال
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       بانک ما
@@ -642,122 +586,196 @@ const TransferTransactionManager: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredTransfers.map((transfer, idx) => (
-                    <motion.tr
-                      key={transfer._id}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.3 }}
-                      className={`hover:bg-gray-50 ${
-                        selectedTransfers.has(transfer._id) ? "bg-blue-50" : ""
-                      }`}
+                  {transfers.map(
+                    (transfer: TransferTransaction, idx: number) => (
+                      <motion.tr
+                        key={transfer._id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.3 }}
+                        className={`hover:bg-gray-50 ${
+                          selectedTransfers.has(transfer._id)
+                            ? "bg-blue-50"
+                            : ""
+                        }`}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          <input
+                            type="checkbox"
+                            checked={selectedTransfers.has(transfer._id)}
+                            onChange={() => handleSelectTransfer(transfer._id)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {(currentPage - 1) * recordsPerPage + idx + 1}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {transfer.transferReference || "نامشخص"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {transfer.amount.toLocaleString("fa-IR") || 0}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {typeof transfer.ourBank === "object"
+                            ? transfer.ourBank.name
+                            : "نامشخص"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {typeof transfer.paidBy === "object"
+                            ? `${transfer.paidBy.name} `
+                            : "نامشخص"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {typeof transfer.payTo === "object"
+                            ? `${transfer.payTo.name} `
+                            : "نامشخص"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {formatDate(transfer.transferDate)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span
+                            className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                              transfer.type === "income"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-orange-100 text-orange-800"
+                            }`}
+                          >
+                            {transfer.type === "income" ? "دریافتی" : "پرداختی"}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {formatDate(transfer.createdAt)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex gap-2">
+                            <div className="relative group">
+                              <button
+                                onClick={() => {
+                                  setSelectedTransfer(transfer);
+                                  setIsViewModalOpen(true);
+                                }}
+                                className="text-blue-600 border cursor-pointer hover:text-blue-900 px-3 py-2 rounded-lg hover:bg-blue-50 transition-all duration-200 flex items-center justify-center"
+                              >
+                                <HiOutlineEye className="w-4 h-4" />
+                              </button>
+                              <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                                مشاهده جزئیات
+                              </span>
+                            </div>
+                            <div className="relative group">
+                              <button
+                                onClick={() => handleEdit(transfer)}
+                                className="text-amber-600 border cursor-pointer hover:text-amber-900 px-3 py-2 rounded-lg hover:bg-amber-50 transition-all duration-200 flex items-center justify-center"
+                              >
+                                <HiOutlinePencilAlt className="w-4 h-4" />
+                              </button>
+                              <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                                ویرایش
+                              </span>
+                            </div>
+
+                            <div className="relative group">
+                              <button
+                                onClick={() => {
+                                  setSelectedTransfer(transfer);
+                                  setIsDeleteModalOpen(true);
+                                }}
+                                className="text-red-600 border cursor-pointer hover:text-red-900 px-3 py-2 rounded-lg hover:bg-red-50 transition-all duration-200 flex items-center justify-center"
+                              >
+                                <HiOutlineTrash className="w-4 h-4" />
+                              </button>
+                              <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                                حذف
+                              </span>
+                            </div>
+                            <div className="relative group">
+                              <button
+                                onClick={() => handleRowPng(transfer)}
+                                disabled={isGenerating}
+                                className="text-purple-600 border cursor-pointer hover:text-purple-900 px-3 py-2 rounded-lg hover:bg-purple-50 transition-all duration-200 flex items-center justify-center disabled:opacity-50"
+                              >
+                                <HiOutlineDownload className="w-4 h-4" />
+                              </button>
+                              <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
+                                دانلود PNG
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                      </motion.tr>
+                    )
+                  )}
+                </tbody>
+                <tfoot className="bg-gray-100">
+                  <tr>
+                    <td
+                      colSpan={3}
+                      className="px-6 py-4 text-right text-sm font-bold text-gray-900"
                     >
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        <input
-                          type="checkbox"
-                          checked={selectedTransfers.has(transfer._id)}
-                          onChange={() => handleSelectTransfer(transfer._id)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {idx + 1}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {transfer.transferReference || "نامشخص"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {typeof transfer.ourBank === "object"
-                          ? transfer.ourBank.name
-                          : "نامشخص"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {typeof transfer.paidBy === "object"
-                          ? `${transfer.paidBy.name} (${transfer.paidBy.code})`
-                          : "نامشخص"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {typeof transfer.payTo === "object"
-                          ? `${transfer.payTo.name} (${transfer.payTo.code})`
-                          : "نامشخص"}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(transfer.transferDate)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            transfer.type === "income"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-orange-100 text-orange-800"
+                      جمع کل:
+                    </td>
+                    <td className="px-6 py-4 text-right text-sm font-bold text-gray-900">
+                      {formatAmount(totalAmount)}
+                    </td>
+                    <td colSpan={7}></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {pagination.totalPages > 1 && (
+            <div className="mt-6 flex flex-col sm:flex-row justify-center items-center gap-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  قبلی
+                </button>
+                <div className="flex gap-1">
+                  {Array.from(
+                    { length: Math.min(5, pagination.totalPages) },
+                    (_, i) => {
+                      let pageNum;
+                      if (pagination.totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= pagination.totalPages - 2) {
+                        pageNum = pagination.totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`px-3 py-2 border rounded-md text-sm ${
+                            currentPage === pageNum
+                              ? "bg-blue-500 text-white border-blue-500"
+                              : "border-gray-300 hover:bg-gray-50"
                           }`}
                         >
-                          {transfer.type === "income" ? "دریافتی" : "پرداختی"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(transfer.createdAt)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex gap-2">
-                          <div className="relative group">
-                            <button
-                              onClick={() => {
-                                setSelectedTransfer(transfer);
-                                setIsViewModalOpen(true);
-                              }}
-                              className="text-blue-600 border cursor-pointer hover:text-blue-900 px-3 py-2 rounded-lg hover:bg-blue-50 transition-all duration-200 flex items-center justify-center"
-                            >
-                              <HiOutlineEye className="w-4 h-4" />
-                            </button>
-                            <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
-                              مشاهده جزئیات
-                            </span>
-                          </div>
-                          <div className="relative group">
-                            <button
-                              onClick={() => handleEdit(transfer)}
-                              className="text-amber-600 border cursor-pointer hover:text-amber-900 px-3 py-2 rounded-lg hover:bg-amber-50 transition-all duration-200 flex items-center justify-center"
-                            >
-                              <HiOutlinePencilAlt className="w-4 h-4" />
-                            </button>
-                            <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
-                              ویرایش
-                            </span>
-                          </div>
-
-                          <div className="relative group">
-                            <button
-                              onClick={() => {
-                                setSelectedTransfer(transfer);
-                                setIsDeleteModalOpen(true);
-                              }}
-                              className="text-red-600 border cursor-pointer hover:text-red-900 px-3 py-2 rounded-lg hover:bg-red-50 transition-all duration-200 flex items-center justify-center"
-                            >
-                              <HiOutlineTrash className="w-4 h-4" />
-                            </button>
-                            <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
-                              حذف
-                            </span>
-                          </div>
-                          <div className="relative group">
-                            <button
-                              onClick={() => handleRowPng(transfer)}
-                              disabled={isGenerating}
-                              className="text-purple-600 border cursor-pointer hover:text-purple-900 px-3 py-2 rounded-lg hover:bg-purple-50 transition-all duration-200 flex items-center justify-center disabled:opacity-50"
-                            >
-                              <HiOutlineDownload className="w-4 h-4" />
-                            </button>
-                            <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
-                              دانلود PNG
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
+                          {pageNum}
+                        </button>
+                      );
+                    }
+                  )}
+                </div>
+                <button
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === pagination.totalPages}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  بعدی
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -1069,7 +1087,7 @@ const TransferTransactionManager: React.FC = () => {
                       type="submit"
                       className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium transition-colors duration-200"
                     >
-                      بهروزرسانی تراکنش
+                      به روزرسانی تراکنش
                     </button>
                     <button
                       type="button"

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useImperativeHandle } from "react";
+import React, { useState, useImperativeHandle, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   HiOutlineEye,
@@ -10,28 +10,30 @@ import {
 } from "react-icons/hi";
 import { TableColumn, DynamicTableProps } from "@/types/tables";
 import { useTableToPng } from "@/hooks/useTableToPng";
+import { DateObject } from "react-multi-date-picker";
+import DatePicker from "react-multi-date-picker";
+import persian from "react-date-object/calendars/persian";
+import persian_fa from "react-date-object/locales/persian_fa";
+import { useTableData } from "@/hooks/useTable";
 
 const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
   type RowType = {
-    [key: string]: unknown; // Allow any type for flexibility
+    [key: string]: unknown;
     _id?: string | number;
     id?: string | number;
   };
-  const [data, setData] = useState<RowType[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState<{
-    currentPage: number;
-    totalPages: number;
-    totalItems: number;
-    itemsPerPage: number;
-    hasNextPage: boolean;
-    hasPrevPage: boolean;
+  const [sortConfig, setSortConfig] = useState<{
+    key: string;
+    direction: "asc" | "desc" | string;
   } | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
-  type SortConfig = { key: string; direction: "asc" | "desc" | string } | null;
-  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [currentPage, setCurrentPage] = useState(1);
+  const [localFilters, setLocalFilters] = useState<
+    Record<
+      string,
+      string | number | boolean | [string, string] | [number, number] | null
+    >
+  >(config.filters || {});
   const {
     generateRowPng,
     generateTablePng,
@@ -40,116 +42,36 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
     error: pngError,
   } = useTableToPng();
 
-  useEffect(() => {
-    fetchData();
-  }, [config.endpoint, config.filters, currentPage]);
+  // استفاده از هوک useTableData برای دریافت داده‌ها
+  const { data, pagination, error, isLoading, mutate } = useTableData(
+    config.endpoint,
+    config.headers,
+    { ...config.filters, ...localFilters },
+    currentPage,
+    config.responseHandler
+  );
 
-  useEffect(() => {
-    setCurrentPage(1); // Reset to first page when filters change
-  }, [config.filters]);
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-
-      // Build URL with filters and pagination
-      const baseUrl = config.endpoint.split('?')[0]; // Remove existing query params
-      const params = new URLSearchParams();
-      
-      // Add pagination parameters from frontend
-      const itemsPerPage = config.itemsPerPage || 10;
-      params.append('page', String(currentPage));
-      params.append('limit', String(itemsPerPage));
-      
-      // Add filters
-      if (config.filters && Object.keys(config.filters).length > 0) {
-        Object.entries(config.filters).forEach(([key, value]) => {
-          if (value !== undefined && value !== null && value !== "") {
-            // Handle boolean conversion for isActive
-            if (key === "isActive" && (value === "true" || value === "false")) {
-              params.append(key, value === "true" ? "true" : "false");
-            } else {
-              params.append(key, String(value));
-            }
-          }
-        });
+  const debouncedUpdateFilter = useCallback(
+    (
+      key: string,
+      value:
+        | string
+        | number
+        | boolean
+        | [string, string]
+        | [number, number]
+        | null
+    ) => {
+      setLocalFilters((prev) => ({
+        ...prev,
+        [key]: value,
+      }));
+      if (currentPage !== 1) {
+        setCurrentPage(1);
       }
-      
-      const url = `${baseUrl}?${params.toString()}`;
-
-      console.log("Fetching URL:", url); // Debug log
-      console.log("Filters being sent:", config.filters); // Debug filters
-
-      const options: RequestInit = {
-        method: "GET",
-        headers: config.headers ? { ...config.headers } : {},
-      };
-      const response = await fetch(url, options);
-      const result = await response.json();
-
-      console.log("API Response:", result); // Debug API response
-
-      if (!response.ok) {
-        throw new Error(result.error || "Failed to fetch data");
-      }
-
-      // Handle pagination if present
-      if (result.pagination) {
-        setPagination(result.pagination);
-      }
-
-      // Use responseHandler if provided, otherwise check for common response structures
-      if (config.responseHandler) {
-        setData(config.responseHandler(result) || []);
-      } else if (result.accountGroups) {
-        // Special case for accountGroups API
-        setData(result.accountGroups || []);
-      } else if (result.totalAccounts) {
-        // Special case for totalAccounts API
-        setData(result.totalAccounts || []);
-      } else if (result.permissions) {
-        // Special case for permissions API
-        setData(result.permissions || []);
-      } else if (result.rollcalls) {
-        // Special case for rollcalls API
-        setData(result.rollcalls || []);
-      } else if (result.deficits) {
-        // Special case for deficits API
-        setData(result.deficits || []);
-      } else if (result.checks) {
-        // Special case for transactions API
-        setData(result.checks || []);
-      } else if (result.inventoryReports) {
-        // Special case for inventory reports API
-        setData(result.inventoryReports || []);
-      } else if (result.inventory) {
-        // Special case for inventory API
-        setData(result.inventory || []);
-      } else if (result.providers) {
-        // Special case for providers API
-        setData(result.providers || []);
-      } else if (result.providerReports) {
-        // Special case for provider reports API
-        setData(result.providerReports || []);
-      } else if (result.fiscalYears) {
-        // Special case for fiscal years API
-        setData(result.fiscalYears || []);
-      } else {
-        setData(result.data || []);
-      }
-      setError(null);
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "An error occurred";
-      setError(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  };
+    },
+    [currentPage]
+  );
 
   const handleSort = (key: string) => {
     let direction = "asc";
@@ -170,7 +92,6 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
       const aValue = a[sortConfig.key];
       const bValue = b[sortConfig.key];
 
-      // Handle null/undefined values
       if (aValue == null && bValue == null) return 0;
       if (aValue == null) return sortConfig.direction === "asc" ? 1 : -1;
       if (bValue == null) return sortConfig.direction === "asc" ? -1 : 1;
@@ -188,19 +109,22 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
   const formatCellValue = (
     value: unknown,
     column: TableColumn,
-    row: string|number|object|unknown
+    row: string | number | object | unknown
   ): React.ReactNode => {
-    // If a custom render function is provided, use it with the raw value
     if (column.render) {
-      return column.render(value, row);
+      return column.render(value, row as Record<string, unknown>);
     }
 
-    // Handle nested properties (e.g., "staff.name")
     if (column.key.includes(".")) {
       const keys = column.key.split(".");
       let nestedValue = row;
       for (const key of keys) {
-        if (nestedValue && typeof nestedValue === 'object' && nestedValue !== null && key in nestedValue) {
+        if (
+          nestedValue &&
+          typeof nestedValue === "object" &&
+          nestedValue !== null &&
+          key in nestedValue
+        ) {
           nestedValue = (nestedValue as Record<string, unknown>)[key];
         } else {
           nestedValue = null;
@@ -210,7 +134,6 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
       value = nestedValue;
     }
 
-    // Handle different column types
     switch (column.type) {
       case "date":
         if (value instanceof Date) {
@@ -262,7 +185,196 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
   };
 
   const refreshData = () => {
-    fetchData();
+    mutate();
+  };
+
+  const clearFilters = () => {
+    setLocalFilters({});
+    setCurrentPage(1);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const renderFilterField = (field: TableColumn) => {
+    const value = localFilters[field.key];
+
+    switch (field.filterType) {
+      case "text":
+        return (
+          <input
+            type="text"
+            value={String(value || "")}
+            onChange={(e) => {
+              const inputValue = e.target.value;
+              debouncedUpdateFilter(
+                field.key,
+                inputValue === "" ? null : inputValue
+              );
+            }}
+            placeholder={field.placeholder || `جستجو ${field.label}`}
+            className="w-full p-3 border border-gray-300 rounded-lg text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
+          />
+        );
+      case "select":
+        return (
+          <select
+            value={String(value || "")}
+            onChange={(e) => {
+              const selectValue = e.target.value;
+              debouncedUpdateFilter(
+                field.key,
+                selectValue === "" ? null : selectValue
+              );
+            }}
+            className="w-full p-3 border border-gray-300 rounded-lg text-black focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
+          >
+            <option value="">{field.placeholder || "انتخاب کنید"}</option>
+            {field.filterOptions?.map(
+              (option: { value: string; label: string }) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              )
+            )}
+          </select>
+        );
+      case "number":
+        return (
+          <input
+            type="number"
+            value={String(value || "")}
+            onChange={(e) =>
+              debouncedUpdateFilter(field.key, Number(e.target.value))
+            }
+            placeholder={field.placeholder}
+            min={field.min || 0}
+            className="w-full p-3 border border-gray-300 rounded-lg text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
+          />
+        );
+      case "numberRange":
+        const numRange = Array.isArray(value)
+          ? (value as [number, number])
+          : ([0, 0] as [number, number]);
+        return (
+          <div className="flex gap-2">
+            <input
+              type="number"
+              value={String(numRange[0] || "")}
+              onChange={(e) =>
+                debouncedUpdateFilter(field.key, [
+                  Number(e.target.value) || 0,
+                  Number(numRange[1]) || 0,
+                ])
+              }
+              placeholder="حداقل"
+              className="w-full p-3 border border-gray-300 rounded-lg text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
+            />
+            <span className="flex items-center text-gray-400">-</span>
+            <input
+              type="number"
+              value={String(numRange[1] || "")}
+              onChange={(e) =>
+                debouncedUpdateFilter(field.key, [
+                  Number(numRange[0]) || 0,
+                  Number(e.target.value) || 0,
+                ])
+              }
+              placeholder="حداکثر"
+              className="w-full p-3 border border-gray-300 rounded-lg text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400"
+            />
+          </div>
+        );
+      case "date":
+        return (
+          <div className="relative">
+            <DatePicker
+              value={value ? new DateObject(new Date(String(value))) : null}
+              onChange={(val) => {
+                const dateValue = val
+                  ? val.toDate().toISOString().split("T")[0]
+                  : "";
+                debouncedUpdateFilter(field.key, dateValue || null);
+              }}
+              calendar={persian}
+              locale={persian_fa}
+              format="YYYY/MM/DD"
+              placeholder="انتخاب تاریخ"
+              inputClass="w-full p-3 pr-4 pl-8 border border-gray-300 rounded-lg text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400 text-right"
+              calendarPosition="bottom-center"
+              containerClassName="w-full"
+            />
+            <div className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">
+              📅
+            </div>
+          </div>
+        );
+      case "dateRange":
+        const dateRange = Array.isArray(value)
+          ? (value as [string, string])
+          : (["", ""] as [string, string]);
+        return (
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <DatePicker
+                value={
+                  dateRange[0] ? new DateObject(new Date(dateRange[0])) : null
+                }
+                onChange={(val) => {
+                  const fromDate = val
+                    ? val.toDate().toISOString().split("T")[0]
+                    : "";
+                  const newRange: [string, string] = [fromDate, dateRange[1]];
+                  debouncedUpdateFilter(
+                    field.key,
+                    fromDate || dateRange[1] ? newRange : null
+                  );
+                }}
+                calendar={persian}
+                locale={persian_fa}
+                format="YYYY/MM/DD"
+                placeholder="از تاریخ"
+                inputClass="w-full p-3 pr-4 pl-8 border border-gray-300 rounded-lg text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400 text-right"
+                calendarPosition="bottom-center"
+                containerClassName="w-full"
+              />
+              <div className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">
+                📅
+              </div>
+            </div>
+            <div className="relative flex-1">
+              <DatePicker
+                value={
+                  dateRange[1] ? new DateObject(new Date(dateRange[1])) : null
+                }
+                onChange={(val) => {
+                  const toDate = val
+                    ? val.toDate().toISOString().split("T")[0]
+                    : "";
+                  const newRange: [string, string] = [dateRange[0], toDate];
+                  debouncedUpdateFilter(
+                    field.key,
+                    dateRange[0] || toDate ? newRange : null
+                  );
+                }}
+                calendar={persian}
+                locale={persian_fa}
+                format="YYYY/MM/DD"
+                placeholder="تا تاریخ"
+                inputClass="w-full p-3 pr-4 pl-8 border border-gray-300 rounded-lg text-black placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-400 text-right"
+                calendarPosition="bottom-center"
+                containerClassName="w-full"
+              />
+              <div className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">
+                📅
+              </div>
+            </div>
+          </div>
+        );
+      default:
+        return null;
+    }
   };
 
   const formatValueForPng = (
@@ -271,9 +383,8 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
     row: object
   ): string => {
     if (column.render && typeof column.render === "function") {
-      const rendered = column.render(value, row);
+      const rendered = column.render(value, row as Record<string, unknown>);
       if (React.isValidElement(rendered)) {
-        // For date columns, format the original value
         if (column.type === "date") {
           if (value instanceof Date) {
             return value.toLocaleDateString("fa-IR");
@@ -290,7 +401,6 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
         return String(rendered || "-");
       }
     } else {
-      // Handle date formatting for non-rendered columns
       if (column.type === "date") {
         if (value instanceof Date) {
           return value.toLocaleDateString("fa-IR");
@@ -322,14 +432,14 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
       setSelectedRows(new Set());
     } else {
       setSelectedRows(
-        new Set(sortedData.map((row) => String(row._id || row.id)))
+        new Set(sortedData.map((row: RowType) => String(row._id || row.id)))
       );
     }
   };
 
   const handleTablePng = () => {
     const headers = config.columns.map((col) => col.label || col.header || "");
-    const tableData = sortedData.map((row, idx) => {
+    const tableData = sortedData.map((row: RowType, idx: number) => {
       const rowData: Record<
         string,
         string | number | boolean | null | undefined
@@ -351,8 +461,8 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
   const handleSelectedRowsPng = () => {
     const headers = config.columns.map((col) => col.label || col.header || "");
     const selectedData = sortedData
-      .filter((row) => selectedRows.has(String(row._id || row.id)))
-      .map((row, idx) => {
+      .filter((row: RowType) => selectedRows.has(String(row._id || row.id)))
+      .map((row: RowType, idx: number) => {
         const rowData: Record<
           string,
           string | number | boolean | null | undefined
@@ -381,8 +491,9 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
       string | number | boolean | null | undefined
     > = {
       index:
-        sortedData.findIndex((r) => (r._id || r.id) === (row._id || row.id)) +
-        1,
+        sortedData.findIndex(
+          (r: RowType) => (r._id || r.id) === (row._id || row.id)
+        ) + 1,
     };
     config.columns.forEach((col) => {
       const value = row[col.key];
@@ -402,20 +513,12 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
     selectedCount: selectedRows.size,
   }));
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-md p-4">
         <p className="text-red-700">خطا در بارگذاری داده‌ها: {error}</p>
         <button
-          onClick={fetchData}
+          onClick={refreshData}
           className="mt-2 bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
         >
           تلاش مجدد
@@ -425,7 +528,7 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
   }
 
   return (
-    <div className={`bg-white  rounded-lg shadow-md ${config.className || ""}`}>
+    <div className={`bg-white rounded-lg shadow-md ${config.className || ""}`}>
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex justify-between items-center">
@@ -448,7 +551,6 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
               )}
               دانلود جدول (PNG)
             </button>
-
             <button
               onClick={handleSelectedRowsPng}
               disabled={isGenerating || selectedRows.size === 0}
@@ -470,8 +572,39 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
         )}
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
+      {/* Filters */}
+      {config.enableFilters && (
+        <div className="p-4 bg-gray-50 border-b border-gray-200">
+          <div className="grid grid-cols-1 md:grid-cols-2 justify-center items-center lg:grid-cols-6 gap-4">
+            {config.columns
+              .filter((col) => col.filterable)
+              .map((column) => (
+                <div key={column.key} className="flex flex-col">
+                  <label className="text-sm font-medium text-gray-700 mb-1">
+                    {column.label}
+                  </label>
+                  {renderFilterField(column)}
+                </div>
+              ))}
+          </div>
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={clearFilters}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-all duration-200"
+            >
+              پاک کردن فیلترها
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Table with overlay loading */}
+      <div className="relative overflow-x-auto">
+        {isLoading && (
+          <div className="absolute inset-0 flex justify-center items-center bg-white bg-opacity-75 z-10">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          </div>
+        )}
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
@@ -485,6 +618,9 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
                   onChange={handleSelectAll}
                   className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
+              </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                #
               </th>
               {config.columns.map((column) => (
                 <th
@@ -511,7 +647,9 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
               ))}
               {(config.actions?.view ||
                 config.actions?.edit ||
-                config.actions?.delete) && (
+                config.actions?.delete ||
+                (config.actions?.custom &&
+                  config.actions.custom.length > 0)) && (
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                   عملیات
                 </th>
@@ -529,7 +667,7 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
                 </td>
               </tr>
             ) : (
-              sortedData.map((row, index) => {
+              sortedData.map((row: RowType, index: number) => {
                 const rowId = String(row._id || row.id || index);
                 return (
                   <tr
@@ -546,6 +684,14 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {pagination
+                        ? (pagination.currentPage - 1) *
+                            pagination.itemsPerPage +
+                          index +
+                          1
+                        : index + 1}
+                    </td>
                     {config.columns.map((column) => (
                       <td
                         key={column.key}
@@ -556,7 +702,9 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
                     ))}
                     {(config.actions?.view ||
                       config.actions?.edit ||
-                      config.actions?.delete) && (
+                      config.actions?.delete ||
+                      (config.actions?.custom &&
+                        config.actions.custom.length > 0)) && (
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex gap-1">
                           {config.actions?.view && (
@@ -653,7 +801,7 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
             نمایش {sortedData.length} آیتم
           </div>
           <button
-            onClick={fetchData}
+            onClick={refreshData}
             className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
           >
             بروزرسانی

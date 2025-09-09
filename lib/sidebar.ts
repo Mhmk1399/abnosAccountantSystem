@@ -19,6 +19,7 @@ export const navMenuItems = [
       { id: "FiscalYears", title: "سال مالی", icon: FaCalendarAlt },
       { id: "dailyBook", title: "دفتر روزنامه", icon: FaBook },
       { id: "typeOfDocs", title: " انواع سند", icon: FaBook },
+      { id: "groupDetail", title: "گروه تفصیلی", icon: FaBook },
     ],
   },
   {
@@ -123,7 +124,7 @@ export const quickAccessItems = [
   {
     id: "AccountGroup",
     title: "گروه حساب",
-    description: "مدیریت گروه های حسابداری",
+    description: "مدیریت گروه های حساب تفصیلی",
     icon: FaSitemap,
     iconColor: "text-green-600",
     bgColor: "bg-green-50",

@@ -43,16 +43,14 @@ interface AccountGroup extends AccountBase {
   totalAccounts?: TotalAccount[];
 }
 
-
-
 const fa = {
-  addFixedAccount: "افزودن حساب ثابت",
+  addFixedAccount: "افزودن حساب معین",
   editTotalAccount: "ویرایش حساب کل",
   deleteTotalAccount: "حذف حساب کل",
   addDetailedAccount: "افزودن حساب معین",
   editFixedAccount: "ویرایش حساب ثابت",
   deleteFixedAccount: "حذف حساب ثابت",
-  editDetailedAccount: "ویرایش حساب معین",
+  editDetailedAccount: "ویرایش حساب تفصیلی",
   deleteDetailedAccount: "حذف حساب معین",
   name: "نام",
   description: "توضیحات",
@@ -70,9 +68,15 @@ const AccountingTree = () => {
   const { data, loading, error, refreshData } = useAccounting();
   const [modalConfig, setModalConfig] = useState<ModalConfig | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<Record<string, unknown> | null>(null);
+  const [selectedItem, setSelectedItem] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
 
-  const handleOpenModal = (config: ModalConfig, item: Record<string, unknown>) => {
+  const handleOpenModal = (
+    config: ModalConfig,
+    item: Record<string, unknown>
+  ) => {
     const originalOnClose = config.onClose;
     const originalOnSuccess = config.onSuccess;
 
@@ -91,7 +95,6 @@ const AccountingTree = () => {
     setSelectedItem(item);
     setIsModalOpen(true);
   };
-
 
   if (loading) {
     return (
@@ -168,8 +171,22 @@ const AccountingTree = () => {
                   {
                     key: "type",
                     label: "نوع حساب",
-                    type: "text",
+                    type: "select",
                     required: true,
+                    options: [
+                      { label: "بدهکار", value: "debit" },
+                      { label: "بستانکار", value: "credit" },
+                    ],
+                  },
+                  {
+                    key: "fiscalType",
+                    label: "نوع گروه حساب",
+                    type: "select",
+                    required: true,
+                    options: [
+                      { label: "دائم", value: "permanat" },
+                      { label: "غیر دائم", value: "temparary" },
+                    ],
                   },
                   {
                     key: "status",
@@ -213,10 +230,24 @@ const AccountingTree = () => {
                     required: true,
                   },
                   {
-                    key: "type",
-                    label: "نوع حساب",
-                    type: "text",
+                    key: "fiscalType",
+                    label: "نوع حساب تفضیلی",
+                    type: "select",
                     required: true,
+                    options: [
+                      { label: "دائم", value: "permanat" },
+                      { label: "غیر دائم", value: "temparary" },
+                    ],
+                  },
+                  {
+                    key: "type",
+                    label: "نوع",
+                    type: "select",
+                    required: true,
+                    options: [
+                      { label: "بدهکار", value: "debit" },
+                      { label: "بستانکار", value: "credit" },
+                    ],
                   },
                   {
                     key: "status",
@@ -248,22 +279,95 @@ const AccountingTree = () => {
                 const config: ModalConfig = {
                   title: "لیست حساب‌های تفضیلی",
                   type: "list",
-                  size: "lg",
+                  size: "xl",
                   data: data.detailedAccounts,
                   columns: [
                     { key: "code", label: "کد" },
                     { key: "name", label: "نام" },
                     { key: "type", label: "نوع" },
+                    {
+                      key: "fiscalType",
+                      label: "نوع حساب",
+                    },
                     { key: "status", label: "وضعیت" },
                     { key: "description", label: "توضیحات" },
                     { key: "createdAt", label: "تاریخ ایجاد" },
                   ],
+                  actions: {
+                    edit: {
+                      endpoint: "/api/accounts/detailed/id",
+                      method: "PATCH",
+                      fields: [
+                        {
+                          key: "name",
+                          label: "نام حساب تفضیلی",
+                          type: "text",
+                          required: true,
+                        },
+                        {
+                          key: "description",
+                          label: "توضیحات",
+                          type: "textarea",
+                          required: true,
+                        },
+                        {
+                          key: "fiscalType",
+                          label: "نوع حساب تفضیلی",
+                          type: "select",
+                          required: true,
+                          options: [
+                            { label: "دائم", value: "permanat" },
+                            { label: "غیر دائم", value: "temparary" },
+                          ],
+                        },
+                        {
+                          key: "type",
+                          label: "نوع",
+                          type: "select",
+                          required: true,
+                          options: [
+                            { label: "بدهکار", value: "debit" },
+                            { label: "بستانکار", value: "credit" },
+                          ],
+                        },
+                        {
+                          key: "status",
+                          label: "وضعیت",
+                          type: "select",
+                          required: true,
+                          options: [
+                            { label: "فعال", value: "active" },
+                            { label: "غیرفعال", value: "inactive" },
+                          ],
+                        },
+                      ],
+                      onSuccess: () => {
+                        toast.success("حساب تفضیلی با موفقیت ویرایش شد");
+                        // Refresh the list data
+                        fetch("/api/accounts/detailed")
+                          .then((res) => res.json())
+                          .then((freshData) => {
+                            setModalConfig((prev) =>
+                              prev
+                                ? {
+                                    ...prev,
+                                    data: freshData.detailedAccounts,
+                                  }
+                                : null
+                            );
+                          })
+                          .catch(() => {});
+                      },
+                      onError: (err: string) =>
+                        toast.error("خطا در ویرایش: " + err),
+                    },
+                  },
                   onSuccess: () => {},
                   onError: (err: string) => toast.error("خطا: " + err),
                 };
                 handleOpenModal(config, {});
               } catch (error) {
-                console.log(error)
+                console.log(error);
                 toast.error("خطا در دریافت حساب‌های معین");
               }
             }}
@@ -313,7 +417,7 @@ const AccountGroup = ({
   level: number;
   onAction: (config: ModalConfig, item: Record<string, unknown>) => void;
 }) => {
-  const [isOpen, setIsOpen] = useState(level === 0);
+  const [isOpen, setIsOpen] = useState(level === 1 ? true : false);
   const contentRef = useRef(null);
 
   useEffect(() => {
@@ -348,7 +452,26 @@ const AccountGroup = ({
               type: "textarea",
               required: true,
             },
-            { key: "type", label: "نوع حساب", type: "text", required: true },
+            {
+              key: "type",
+              label: "نوع حساب",
+              type: "select",
+              required: true,
+              options: [
+                { label: "بدهکار", value: "debit" },
+                { label: "بستانکار", value: "credit" },
+              ],
+            },
+            {
+              key: "fiscalType",
+              label: "نوع حساب کل",
+              type: "select",
+              required: true,
+              options: [
+                { label: "دائم", value: "permanat" },
+                { label: "غیر دائم", value: "temparary" },
+              ],
+            },
             {
               key: "status",
               label: "وضعیت",
@@ -379,7 +502,26 @@ const AccountGroup = ({
               type: "textarea",
               required: true,
             },
-            { key: "type", label: "نوع حساب", type: "text", required: true },
+            {
+              key: "fiscalType",
+              label: "نوع حساب",
+              type: "select",
+              required: true,
+              options: [
+                { label: "دائم", value: "permanat" },
+                { label: "غیر دائم", value: "temparary" },
+              ],
+            },
+            {
+              key: "type",
+              label: "نوع حساب",
+              type: "select",
+              required: true,
+              options: [
+                { label: "بدهکار", value: "debit" },
+                { label: "بستانکار", value: "credit" },
+              ],
+            },
             {
               key: "status",
               label: "وضعیت",
@@ -392,7 +534,8 @@ const AccountGroup = ({
             },
           ],
           onSuccess: () => toast.success("گروه حساب با موفقیت ویرایش شد"),
-          onError: (err: string) => toast.error("خطا در ویرایش گروه حساب: " + err),
+          onError: (err: string) =>
+            toast.error("خطا در ویرایش گروه حساب: " + err),
         };
         onAction(config, group);
         break;
@@ -440,7 +583,9 @@ const AccountGroup = ({
             <span className="font-mono text-sm text-gray-500 ml-2">
               {String(group.code)}
             </span>
-            <span className="font-medium text-gray-800">{String(group.name)}</span>
+            <span className="font-medium text-gray-800">
+              {String(group.name)}
+            </span>
           </div>
         </div>
         <div
@@ -477,14 +622,16 @@ const AccountGroup = ({
       </div>
 
       <div ref={contentRef} className="overflow-hidden h-0 opacity-0 pr-8">
-        {(group.totalAccounts as Record<string, unknown>[])?.map((account: Record<string, unknown>) => (
-          <TotalAccount
-            key={(account._id as { toString(): string }).toString()}
-            account={account}
-            level={level + 1}
-            onAction={onAction}
-          />
-        ))}
+        {(group.totalAccounts as Record<string, unknown>[])?.map(
+          (account: Record<string, unknown>) => (
+            <TotalAccount
+              key={(account._id as { toString(): string }).toString()}
+              account={account}
+              level={level + 1}
+              onAction={onAction}
+            />
+          )
+        )}
       </div>
     </div>
   );
@@ -534,10 +681,29 @@ const TotalAccount = ({
               type: "textarea",
               required: true,
             },
-            { key: "type", label: fa.type, type: "text", required: true },
+            {
+              key: "type",
+              label: fa.type,
+              type: "select",
+              required: true,
+              options: [
+                { label: "بدهکار", value: "debit" },
+                { label: "بستانکار", value: "credit" },
+              ],
+            },
+            {
+              key: "fiscalType",
+              label: "نوع حساب",
+              type: "select",
+              required: true,
+              options: [
+                { label: "دائم", value: "permanat" },
+                { label: "غیر دائم", value: "temparary" },
+              ],
+            },
             {
               key: "howManyDetailedDoesItHave",
-              label: "تعداد حساب‌های تفضیلی",
+              label: "تعداد سطح حساب‌های تفضیلی",
               type: "number",
               required: true,
             },
@@ -561,7 +727,7 @@ const TotalAccount = ({
         break;
       case "edit":
         config = {
-          title: fa.editTotalAccount,
+          title: "ویرایش حساب کل",
           type: "edit",
           endpoint: `/api/accounts/totalAccounts/id`,
           method: "PATCH",
@@ -573,7 +739,26 @@ const TotalAccount = ({
               type: "textarea",
               required: true,
             },
-            { key: "type", label: fa.type, type: "text", required: true },
+            {
+              key: "fiscalType",
+              label: "نوع حساب",
+              type: "select",
+              required: true,
+              options: [
+                { label: "دائم", value: "permanat" },
+                { label: "غیر دائم", value: "temparary" },
+              ],
+            },
+            {
+              key: "type",
+              label: "نوع حساب",
+              type: "select",
+              required: true,
+              options: [
+                { label: "بدهکار", value: "debit" },
+                { label: "بستانکار", value: "credit" },
+              ],
+            },
             {
               key: "status",
               label: fa.status,
@@ -630,7 +815,9 @@ const TotalAccount = ({
             <span className="font-mono text-xs text-gray-500 ml-2">
               {String(account.code)}
             </span>
-            <span className="text-gray-800 font-medium">{String(account.name)}</span>
+            <span className="text-gray-800 font-medium">
+              {String(account.name)}
+            </span>
           </div>
         </div>
         <div
@@ -667,14 +854,16 @@ const TotalAccount = ({
       </div>
 
       <div ref={contentRef} className="overflow-hidden h-0 opacity-0 pr-8">
-        {(account.fixedAccounts as Record<string, unknown>[])?.map((fixed: Record<string, unknown>) => (
-          <FixedAccount
-            key={(fixed._id as { toString(): string }).toString()}
-            account={fixed}
-            level={level + 1}
-            onAction={onAction}
-          />
-        ))}
+        {(account.fixedAccounts as Record<string, unknown>[])?.map(
+          (fixed: Record<string, unknown>) => (
+            <FixedAccount
+              key={(fixed._id as { toString(): string }).toString()}
+              account={fixed}
+              level={level + 1}
+              onAction={onAction}
+            />
+          )
+        )}
       </div>
     </div>
   );
@@ -721,14 +910,14 @@ const FixedAccount = ({
               })) || [];
 
             config = {
-              title: "افزودن حساب معین به حساب ثابت",
+              title: "افزودن حساب تفصیلی به حساب معین",
               type: "create",
               endpoint: `/api/accounts/fixedAccounts`,
               method: "POST",
               fields: [
                 {
                   key: "detailedAccountIds",
-                  label: "حساب‌های معین",
+                  label: "حساب‌های تفصیلی",
                   type: "select",
                   required: true,
                   options: detailedOptions,
@@ -761,10 +950,29 @@ const FixedAccount = ({
               type: "textarea",
               required: true,
             },
-            { key: "type", label: fa.type, type: "text", required: true },
+            {
+              key: "type",
+              label: fa.type,
+              type: "select",
+              required: true,
+              options: [
+                { label: "بدهکار", value: "debit" },
+                { label: "بستانکار", value: "credit" },
+              ],
+            },
+            {
+              key: "fiscalType",
+              label: "نوع حساب",
+              type: "select",
+              required: true,
+              options: [
+                { label: "دائم", value: "permanat" },
+                { label: "غیر دائم", value: "temparary" },
+              ],
+            },
             {
               key: "howManyDetailedDoesItHave",
-              label: "تعداد حساب‌های تفضیلی",
+              label: "تعداد سطح حساب‌های تفضیلی",
               type: "number",
               required: true,
             },
@@ -824,7 +1032,9 @@ const FixedAccount = ({
             <span className="font-mono text-xs text-gray-500 ml-2">
               {String(account.code)}
             </span>
-            <span className="text-gray-800 font-medium">{String(account.name)}</span>
+            <span className="text-gray-800 font-medium">
+              {String(account.name)}
+            </span>
           </div>
         </div>
         <div
@@ -861,13 +1071,15 @@ const FixedAccount = ({
       </div>
 
       <div ref={contentRef} className="overflow-hidden h-0 opacity-0 pr-8">
-        {(account.detailedAccounts as Record<string, unknown>[])?.map((detailed: Record<string, unknown>) => (
-          <DetailedAccount
-            key={(detailed._id as { toString(): string }).toString()}
-            account={detailed}
-            onAction={onAction}
-          />
-        ))}
+        {(account.detailedAccounts as Record<string, unknown>[])?.map(
+          (detailed: Record<string, unknown>) => (
+            <DetailedAccount
+              key={(detailed._id as { toString(): string }).toString()}
+              account={detailed}
+              onAction={onAction}
+            />
+          )
+        )}
       </div>
     </div>
   );
@@ -880,8 +1092,6 @@ const DetailedAccount = ({
   account: Record<string, unknown>;
   onAction: (config: ModalConfig, item: Record<string, unknown>) => void;
 }) => {
-
-
   const handleAction = (type: "edit" | "delete", e: React.MouseEvent) => {
     e.stopPropagation();
 
@@ -894,22 +1104,46 @@ const DetailedAccount = ({
           endpoint: `/api/accounts/detailed/id`,
           method: "PATCH",
           fields: [
-            { key: "name", label: fa.name, type: "text", required: true },
+            {
+              key: "name",
+              label: "نام حساب تفضیلی",
+              type: "text",
+              required: true,
+            },
             {
               key: "description",
-              label: fa.description,
+              label: "توضیحات",
               type: "textarea",
               required: true,
             },
-            { key: "type", label: fa.type, type: "text", required: true },
             {
-              key: "status",
-              label: fa.status,
+              key: "fiscalType",
+              label: "نوع حساب تفضیلی",
               type: "select",
               required: true,
               options: [
-                { label: fa.active, value: "active" },
-                { label: fa.inactive, value: "inactive" },
+                { label: "دائم", value: "permanat" },
+                { label: "غیر دائم", value: "temparary" },
+              ],
+            },
+            {
+              key: "type",
+              label: "نوع",
+              type: "select",
+              required: true,
+              options: [
+                { label: "بدهکار", value: "debit" },
+                { label: "بستانکار", value: "credit" },
+              ],
+            },
+            {
+              key: "status",
+              label: "وضعیت",
+              type: "select",
+              required: true,
+              options: [
+                { label: "فعال", value: "active" },
+                { label: "غیرفعال", value: "inactive" },
               ],
             },
           ],
@@ -946,7 +1180,9 @@ const DetailedAccount = ({
         <span className="font-mono text-xs text-gray-500 ml-2">
           {account.code as string}
         </span>
-        <span className="text-gray-800 font-medium">{account.name as string}</span>
+        <span className="text-gray-800 font-medium">
+          {account.name as string}
+        </span>
       </div>
       <div
         className="flex items-center gap-2"

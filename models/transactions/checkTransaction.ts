@@ -81,16 +81,18 @@ const CheckTransactionSchema = new mongoose.Schema(
       type: String,
     },
 
-    paidBy: {
-      type: mongoose.Types.ObjectId,
-      ref: "DetailedAccount",
-      required: true,
-    },
-    payTo: {
-      type: mongoose.Types.ObjectId,
-      ref: "DetailedAccount",
-      required: true,
-    },
+    paidBy: [
+      {
+        type: mongoose.Types.ObjectId,
+        ref: "DetailedAccount",
+      },
+    ],
+    payTo: [
+      {
+        type: mongoose.Types.ObjectId,
+        ref: "DetailedAccount",
+      },
+    ],
 
     receiverName: {
       type: String,

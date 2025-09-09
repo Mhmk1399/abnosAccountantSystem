@@ -7,7 +7,14 @@ import persian from "react-date-object/calendars/persian";
 import persian_fa from "react-date-object/locales/persian_fa";
 import { FaRegCalendarAlt } from "react-icons/fa";
 import { useDailyBook } from "@/contexts/DailyBookContext";
-import { PaymentDetail, TransactionData, Workflow, BankAccount, Account } from "@/types/finalTypes";
+import FormattedNumberInput from "@/utils/FormattedNumberInput";
+import {
+  PaymentDetail,
+  TransactionData,
+  BankAccount,
+  Account,
+} from "@/types/finalTypes";
+import { GroupDetailAccount } from "@/types/type";
 
 interface TransactionWizardProps {
   isOpen: boolean;
@@ -81,215 +88,70 @@ const TransactionWizard: React.FC<TransactionWizardProps> = ({
   const handlePaymentDetailSubmit = async (paymentData: PaymentDetail) => {
     setLoading(true);
     try {
+      const endpointMap: Record<string, string> = {
+        cash: "/api/transactions/cash",
+        check: "/api/transactions/cheks",
+        transfer: "/api/transactions/transfer",
+      };
+
+      const endpoint = endpointMap[wizardState.paymentType];
+      let requestData = { ...paymentData, type: wizardState.transactionType };
 
       if (wizardState.paymentType === "check") {
-        // For check transactions, use the new process endpoint
-        const transactionData = {
+        requestData = {
           ...paymentData,
           type: wizardState.transactionType,
-          toBank: paymentData.toBank,
           amount: Number(paymentData.amount),
           checkNumber: Number(paymentData.checkNumber),
           seryNumber: Number(paymentData.seryNumber),
-          dueDate: paymentData.dueDate,
           documentNumber: paymentData.documentNumber || `CHK-${Date.now()}`,
         };
-
-        const response = await fetch("/api/transactions/cheks", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(transactionData),
-        });
-
-        const result = await response.json();
-        if (response.ok) {
-          toast.success("چک با موفقیت ثبت شد!");
-          setWizardState((prev) => ({
-            ...prev,
-            paymentDetail: paymentData,
-            paymentDetailId: result.checkTransaction._id,
-          }));
-          handleNext();
-        } else {
-          throw new Error(result.error || "Failed to create check transaction");
-        }
-      } else if (wizardState.paymentType === "cash") {
-        // For cash transactions, use the cash API endpoint
-        const cashData = {
-          amount: Number(paymentData.amount),
-          transactionDate: paymentData.transactionDate?.toDate().toISOString(),
-          description: paymentData.description,
-          documentNumber: paymentData.documentNumber,
-          documentDate: paymentData.documentDate?.toDate().toISOString(),
-          paidBy: paymentData.paidBy,
-          payTo: paymentData.payTo,
-          type: wizardState.transactionType,
-        };
-
-        const response = await fetch("/api/transactions/cash", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(cashData),
-        });
-
-        const result = await response.json();
-        if (response.ok) {
-          toast.success("تراکنش نقدی با موفقیت ثبت شد!");
-          setWizardState((prev) => ({
-            ...prev,
-            paymentDetail: paymentData,
-            paymentDetailId: result.cashTransaction._id,
-          }));
-          handleNext();
-        } else {
-          throw new Error(result.error || "Failed to create cash transaction");
-        }
-      } else if (wizardState.paymentType === "transfer") {
-        // For transfer transactions, use the transfer API endpoint
-        const transferData = {
-          ourBank: paymentData.ourBank,
-          transferReference: paymentData.transferReference,
-          transferDate: paymentData.transferDate?.toDate().toISOString(),
-          type: wizardState.transactionType,
-          paidBy: paymentData.paidBy,
-          payTo: paymentData.payTo,
-        };
-
-        const response = await fetch("/api/transactions/transfer", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(transferData),
-        });
-
-        const result = await response.json();
-        if (response.ok) {
-          toast.success("تراکنش انتقالی با موفقیت ثبت شد!");
-          setWizardState((prev) => ({
-            ...prev,
-            paymentDetail: paymentData,
-            paymentDetailId: result.transferTransaction._id,
-          }));
-          handleNext();
-        } else {
-          throw new Error(result.error || "Failed to create transfer transaction");
-        }
-      }
-      // Check if there's a workflow for this trigger
-      const workflowResponse = await fetch("/api/workflow");
-      const workflows = await workflowResponse.json();
-      const matchingWorkflow = workflows.find((w: Workflow) => 
-        w.trigger.model === "CheckTransaction" && w.trigger.method === "POST"
-      );
-
-      if (matchingWorkflow && wizardState.paymentType === "check") {
-        // Use workflow service
-        console.log("🔄 Using workflow:", matchingWorkflow.name);
-        const result = await runWorkflowProcess(matchingWorkflow, paymentData);
-        setWizardState((prev) => ({
-          ...prev,
-          paymentDetail: paymentData,
-          paymentDetailId: result.checkTransaction._id,
-        }));
-      } else {
-        // Use original method
-        const endpointMap: Record<string, string> = {
-          cash: "/api/transactions/cash",
-          check: "/api/transactions/cheks",
-          transfer: "/api/transactions/transfer",
-        };
-        const endpoint = endpointMap[wizardState.paymentType];
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(paymentData),
-        });
-
-        if (!response.ok) throw new Error("Failed to create payment detail");
-
-        const result = await response.json();
-        let paymentDetailId = "";
-        if (wizardState.paymentType === "cash" && result.cashTransaction) {
-          paymentDetailId = result.cashTransaction._id;
-        } else if (wizardState.paymentType === "check" && result.checkTransaction) {
-          paymentDetailId = result.checkTransaction._id;
-        } else if (wizardState.paymentType === "transfer" && result.transferTransaction) {
-          paymentDetailId = result.transferTransaction._id;
-        }
-
-        setWizardState((prev) => ({
-          ...prev,
-          paymentDetail: paymentData,
-          paymentDetailId: paymentDetailId,
-        }));
       }
 
- 
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestData),
+      });
 
-      if (matchingWorkflow && wizardState.paymentType === "check") {
-        // Use workflow service
-        console.log("🔄 Using workflow:", matchingWorkflow.name);
-        const result = await runWorkflowProcess(matchingWorkflow, paymentData);
-        setWizardState((prev) => ({
-          ...prev,
-          paymentDetail: paymentData,
-          paymentDetailId: result.checkTransaction._id,
-        }));
-      } else {
-        // Use original method
-        const endpointMap: Record<string, string> = {
-          cash: "/api/transactions/cash",
-          check: "/api/transactions/cheks",
-          transfer: "/api/transactions/transfer",
-        };
-        const endpoint = endpointMap[wizardState.paymentType];
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(paymentData),
-        });
-
-        if (!response.ok) throw new Error("Failed to create payment detail");
-
-        const result = await response.json();
-        let paymentDetailId = "";
-        if (wizardState.paymentType === "cash" && result.cashTransaction) {
-          paymentDetailId = result.cashTransaction._id;
-        } else if (wizardState.paymentType === "check" && result.checkTransaction) {
-          paymentDetailId = result.checkTransaction._id;
-        } else if (wizardState.paymentType === "transfer" && result.transferTransaction) {
-          paymentDetailId = result.transferTransaction._id;
-        }
-
-        setWizardState((prev) => ({
-          ...prev,
-          paymentDetail: paymentData,
-          paymentDetailId: paymentDetailId,
-        }));
+      if (!response.ok) {
+        const errorResult = await response.json();
+        throw new Error(errorResult.error || "Failed to create transaction");
       }
+
+      const result = await response.json();
+      let paymentDetailId = "";
+
+      if (wizardState.paymentType === "cash" && result.cashTransaction) {
+        paymentDetailId = result.cashTransaction._id;
+        toast.success("تراکنش نقدی با موفقیت ثبت شد!");
+      } else if (
+        wizardState.paymentType === "check" &&
+        result.checkTransaction
+      ) {
+        paymentDetailId = result.checkTransaction._id;
+        toast.success("چک با موفقیت ثبت شد!");
+      } else if (
+        wizardState.paymentType === "transfer" &&
+        result.transferTransaction
+      ) {
+        paymentDetailId = result.transferTransaction._id;
+        toast.success("تراکنش انتقالی با موفقیت ثبت شد!");
+      }
+
+      setWizardState((prev) => ({
+        ...prev,
+        paymentDetail: paymentData,
+        paymentDetailId: paymentDetailId,
+      }));
+
       handleNext();
     } catch (error) {
       console.error("Error creating payment detail:", error);
-      toast.error("Failed to create payment detail");
+      toast.error("خطا در ایجاد تراکنش");
     } finally {
       setLoading(false);
     }
-  };
-
-  const runWorkflowProcess = async (workflow: Workflow, requestData: PaymentDetail) => {
-    const response = await fetch("/api/workflow/execute", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ workflow, requestData }),
-    });
-    
-    if (!response.ok) throw new Error("Workflow execution failed");
-    return await response.json();
   };
 
   const handleFinalSubmit = async (transactionData: TransactionData) => {
@@ -623,7 +485,11 @@ const PaymentDetailStep = memo<{
             />
           )}
           {paymentType === "transfer" && (
-            <TransferForm formData={formData} onChange={handleInputChange} />
+            <TransferForm
+              formData={formData}
+              accounts={accounts}
+              onChange={handleInputChange}
+            />
           )}
 
           <div className="flex justify-between pt-6 border-t border-gray-200">
@@ -742,15 +608,11 @@ const TransactionDetailStep = memo<{
               <label className="block text-sm font-semibold text-gray-700">
                 مقدار (ریال) *
               </label>
-              <input
-                type="number"
+              <FormattedNumberInput
                 value={formData.amount}
-                onChange={(e) =>
-                  handleInputChange("amount", parseFloat(e.target.value))
-                }
+                onChange={(value) => handleInputChange("amount", value)}
                 className="w-full p-3 border border-gray-300 rounded-xl text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                 placeholder="مبلغ را وارد کنید"
-                required
               />
             </div>
 
@@ -833,13 +695,11 @@ const CashForm = memo<{
           <label className="block text-sm font-semibold text-gray-700">
             مبلغ (ریال) *
           </label>
-          <input
-            type="number"
-            value={formData.amount || ""}
-            onChange={(e) => onChange("amount", Number(e.target.value))}
+          <FormattedNumberInput
+            value={formData.amount || 0}
+            onChange={(value) => onChange("amount", value)}
             className="w-full p-3 border border-gray-300 rounded-xl text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             placeholder="مبلغ تراکنش"
-            required
           />
         </div>
 
@@ -967,9 +827,12 @@ const CheckForm = memo<{
   transactionType: string;
   accounts: Account[];
   onChange: (key: string, value: unknown) => void;
-}>(({ formData, transactionType, accounts, onChange }) => {
+}>(({ formData, transactionType, onChange }) => {
   const [banks, setBanks] = useState<BankAccount[]>([]);
   const [loadingBanks, setLoadingBanks] = useState(false);
+  const [groupDetailAccounts, setGroupDetailAccounts] = useState<
+    GroupDetailAccount[]
+  >([]);
 
   // Fetch banks for selection
   const fetchBanks = useCallback(async () => {
@@ -978,7 +841,7 @@ const CheckForm = memo<{
       const response = await fetch("/api/transactions/bank");
       if (response.ok) {
         const data = await response.json();
-        setBanks(data || []);
+        setBanks(data.banks || data || []);
       }
     } catch (error) {
       console.error("Error fetching banks:", error);
@@ -987,9 +850,22 @@ const CheckForm = memo<{
     }
   }, []);
 
-  // Fetch banks on component mount
+  const fetchGroupDetailAccounts = async () => {
+    try {
+      const response = await fetch("/api/accounts/groupDetailAccount");
+      if (response.ok) {
+        const data = await response.json();
+        setGroupDetailAccounts(data.groupDetailAccounts || []);
+      }
+    } catch (error) {
+      console.error("Error fetching group detail accounts:", error);
+    }
+  };
+
+  // Fetch banks and group detail accounts on component mount
   useEffect(() => {
     fetchBanks();
+    fetchGroupDetailAccounts();
   }, [fetchBanks]);
 
   // Set transaction type automatically
@@ -998,6 +874,13 @@ const CheckForm = memo<{
       onChange("type", transactionType);
     }
   }, [transactionType, formData.type, onChange]);
+
+  // Set default status for income transactions
+  useEffect(() => {
+    if (transactionType === "income" && !formData.status) {
+      onChange("status", "nazeSandogh");
+    }
+  }, [transactionType, formData.status, onChange]);
 
   return (
     <div className="space-y-6">
@@ -1078,13 +961,11 @@ const CheckForm = memo<{
           <label className="block text-sm font-semibold text-gray-700">
             مبلغ (ریال) *
           </label>
-          <input
-            type="number"
-            value={formData.amount || ""}
-            onChange={(e) => onChange("amount", Number(e.target.value))}
+          <FormattedNumberInput
+            value={formData.amount || 0}
+            onChange={(value) => onChange("amount", value)}
             className="w-full p-3 border border-gray-300 rounded-xl text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             placeholder="مبلغ چک"
-            required
           />
         </div>
         <div className="space-y-2">
@@ -1123,11 +1004,19 @@ const CheckForm = memo<{
             required
           >
             <option value="">انتخاب حساب پرداخت کننده</option>
-            {accounts.map((account) => (
-              <option key={account._id} value={account._id}>
-                {account.name} ({account.code})
-              </option>
-            ))}
+            {(() => {
+              const targetFlag = transactionType === "income" ? "CUST" : "SAND";
+              const targetGroup = groupDetailAccounts.find(
+                (group) => group.flag === targetFlag
+              );
+              return (
+                targetGroup?.detailedAccounts?.map((account) => (
+                  <option  key={account._id} value={account._id}>
+                    {account.name} ({account.code})
+                  </option>
+                )) || []
+              );
+            })()}
           </select>
         </div>
         <div className="space-y-2">
@@ -1141,11 +1030,19 @@ const CheckForm = memo<{
             required
           >
             <option value="">انتخاب حساب دریافت کننده</option>
-            {accounts.map((account) => (
-              <option key={account._id} value={account._id}>
-                {account.name} ({account.code})
-              </option>
-            ))}
+            {(() => {
+              const targetFlag = transactionType === "income" ? "SAND" : "CUST";
+              const targetGroup = groupDetailAccounts.find(
+                (group) => group.flag === targetFlag
+              );
+              return (
+                targetGroup?.detailedAccounts?.map((account) => (
+                  <option key={account._id} value={account._id}>
+                    {account.name} ({account.code})
+                  </option>
+                )) || []
+              );
+            })()}
           </select>
         </div>
       </div>
@@ -1153,7 +1050,9 @@ const CheckForm = memo<{
       {/* Other Side Bank Information */}
       <div className="space-y-4">
         <h4 className="text-lg font-semibold text-gray-800">
-          {transactionType === "outcome" ? "اطلاعات بانک مقصد" : "اطلاعات بانک مبدا"}
+          {transactionType === "outcome"
+            ? "اطلاعات بانک مقصد"
+            : "اطلاعات بانک مبدا"}
         </h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="space-y-2">
@@ -1164,12 +1063,21 @@ const CheckForm = memo<{
               type="text"
               value={formData.otherSideBank?.[0]?.name || ""}
               onChange={(e) => {
-                const otherSideBank = formData.otherSideBank || [{ name: "", owner: "", accountNumber: "" }];
-                otherSideBank[0] = { ...otherSideBank[0], name: e.target.value };
+                const otherSideBank = formData.otherSideBank || [
+                  { name: "", owner: "", accountNumber: "" },
+                ];
+                otherSideBank[0] = {
+                  ...otherSideBank[0],
+                  name: e.target.value,
+                };
                 onChange("otherSideBank", otherSideBank);
               }}
               className="w-full p-3 border border-gray-300 rounded-xl text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-              placeholder={transactionType === "outcome" ? "نام بانک مقصد" : "نام بانک مبدا"}
+              placeholder={
+                transactionType === "outcome"
+                  ? "نام بانک مقصد"
+                  : "نام بانک مبدا"
+              }
               required
             />
           </div>
@@ -1181,8 +1089,13 @@ const CheckForm = memo<{
               type="text"
               value={formData.otherSideBank?.[0]?.owner || ""}
               onChange={(e) => {
-                const otherSideBank = formData.otherSideBank || [{ name: "", owner: "", accountNumber: "" }];
-                otherSideBank[0] = { ...otherSideBank[0], owner: e.target.value };
+                const otherSideBank = formData.otherSideBank || [
+                  { name: "", owner: "", accountNumber: "" },
+                ];
+                otherSideBank[0] = {
+                  ...otherSideBank[0],
+                  owner: e.target.value,
+                };
                 onChange("otherSideBank", otherSideBank);
               }}
               className="w-full p-3 border border-gray-300 rounded-xl text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
@@ -1195,11 +1108,16 @@ const CheckForm = memo<{
               شماره حساب *
             </label>
             <input
-              type="text"
+              type="number"
               value={formData.otherSideBank?.[0]?.accountNumber || ""}
               onChange={(e) => {
-                const otherSideBank = formData.otherSideBank || [{ name: "", owner: "", accountNumber: "" }];
-                otherSideBank[0] = { ...otherSideBank[0], accountNumber: e.target.value };
+                const otherSideBank = formData.otherSideBank || [
+                  { name: "", owner: "", accountNumber: "" },
+                ];
+                otherSideBank[0] = {
+                  ...otherSideBank[0],
+                  accountNumber: e.target.value,
+                };
                 onChange("otherSideBank", otherSideBank);
               }}
               className="w-full p-3 border border-gray-300 rounded-xl text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
@@ -1247,7 +1165,10 @@ const CheckForm = memo<{
             وضعیت چک *
           </label>
           <select
-            value={formData.status || "nazeSandogh"}
+            value={
+              formData.status ||
+              (transactionType === "income" ? "nazeSandogh" : "")
+            }
             onChange={(e) => onChange("status", e.target.value)}
             className="w-full p-3 border border-gray-300 rounded-xl text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
           >
@@ -1311,9 +1232,9 @@ const CheckForm = memo<{
 const TransferForm = memo<{
   formData: PaymentDetail;
   onChange: (key: string, value: unknown) => void;
-}>(({ formData, onChange }) => {
+  accounts: Account[];
+}>(({ formData, onChange, accounts }) => {
   const [banks, setBanks] = useState<BankAccount[]>([]);
-  const { detailedAccounts } = useDailyBook();
 
   useEffect(() => {
     fetchBanks();
@@ -1324,10 +1245,11 @@ const TransferForm = memo<{
       const response = await fetch("/api/transactions/bank");
       if (response.ok) {
         const data = await response.json();
-        setBanks(data);
+        setBanks(data.banks || data);
       }
     } catch (error) {
-      console.error("خطا در دریافت لیست بانکها:", error);
+      console.log(error);
+      toast.error("خطا در دریافت لیست بانکها");
     }
   };
 
@@ -1391,12 +1313,23 @@ const TransferForm = memo<{
             شماره پیگیری *
           </label>
           <input
-            type="text"
+            type="number"
             value={formData.transferReference || ""}
             onChange={(e) => onChange("transferReference", e.target.value)}
             className="w-full p-3 border border-gray-300 rounded-xl text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
             placeholder="شماره پیگیری تراکنش"
             required
+          />
+        </div>
+        <div className="space-y-2">
+          <label className="block text-sm font-semibold text-gray-700">
+            مقدار انتقال *
+          </label>
+          <FormattedNumberInput
+            value={Number(formData.amount) || 0}
+            onChange={(value) => onChange("amount", value)}
+            className="w-full p-3 border border-gray-300 rounded-xl text-gray-800 bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+            placeholder="مقدار انتقال به ریال"
           />
         </div>
 
@@ -1444,12 +1377,9 @@ const TransferForm = memo<{
             required
           >
             <option value="">انتخاب حساب پرداخت کننده</option>
-            {detailedAccounts.map((account) => (
-              <option
-                key={account._id.toString()}
-                value={account._id.toString()}
-              >
-                {account.name} - {account.code}
+            {accounts.map((account) => (
+              <option key={account._id} value={account._id}>
+                {account.name}
               </option>
             ))}
           </select>
@@ -1467,12 +1397,9 @@ const TransferForm = memo<{
             required
           >
             <option value="">انتخاب حساب دریافت کننده</option>
-            {detailedAccounts.map((account) => (
-              <option
-                key={account._id.toString()}
-                value={account._id.toString()}
-              >
-                {account.name} - {account.code}
+            {accounts.map((account) => (
+              <option key={account._id} value={account._id}>
+                {account.name}
               </option>
             ))}
           </select>

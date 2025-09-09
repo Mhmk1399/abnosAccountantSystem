@@ -19,8 +19,56 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(bank);
     }
 
-    const banks = await Bank.find().populate("detailedAccount");
-    return NextResponse.json(banks);
+    // Get query parameters for pagination and filtering
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const nameFilter = searchParams.get('nameFilter');
+    const branchFilter = searchParams.get('branchFilter');
+    const ownerFilter = searchParams.get('ownerFilter');
+    const accountNumberFilter = searchParams.get('accountNumberFilter');
+
+    // Build filter object
+    const filter: any = {};
+
+    if (nameFilter) {
+      filter.name = { $regex: nameFilter, $options: 'i' };
+    }
+
+    if (branchFilter) {
+      filter.branchName = { $regex: branchFilter, $options: 'i' };
+    }
+
+    if (ownerFilter) {
+      filter.ownerName = { $regex: ownerFilter, $options: 'i' };
+    }
+
+    if (accountNumberFilter) {
+      filter.accountNumber = { $regex: accountNumberFilter, $options: 'i' };
+    }
+
+    // Calculate pagination
+    const skip = (page - 1) * limit;
+
+    // Get total count for pagination
+    const totalRecords = await Bank.countDocuments(filter);
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    // Fetch banks with pagination and filtering
+    const banks = await Bank.find(filter)
+      .populate("detailedAccount")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    return NextResponse.json({
+      banks,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalRecords,
+        recordsPerPage: limit,
+      },
+    });
   } catch (error) {
     console.log(error)
     return NextResponse.json(

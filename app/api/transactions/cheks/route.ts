@@ -1,7 +1,7 @@
 import { NextResponse, NextRequest } from "next/server";
 import CheckTransaction from "@/models/transactions/checkTransaction";
-import Inbox from "@/models/transactions/inbox";
 import connect from "@/lib/data";
+import { createDailyBookForCheck } from "@/services/dailyBookCreatorService";
 
 // GET: Retrieve check transactions with filtering
 export const GET = async (req: NextRequest) => {
@@ -14,6 +14,11 @@ export const GET = async (req: NextRequest) => {
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
   const accountId = searchParams.get("accountId");
+  const checkNumber = searchParams.get("checkNumber");
+  const bankFilter = searchParams.get("bankFilter");
+  const customerFilter = searchParams.get("customerFilter");
+  const page = parseInt(searchParams.get("page") || "1");
+  const limit = parseInt(searchParams.get("limit") || "20");
 
   // If ID is provided, return a specific check transaction
   if (id) {
@@ -43,17 +48,142 @@ export const GET = async (req: NextRequest) => {
   if (accountId) {
     filter.$or = [{ paidBy: accountId }, { payTo: accountId }];
   }
+  if (checkNumber) {
+    filter.checkNumber = parseInt(checkNumber) || {
+      $regex: checkNumber,
+      $options: "i",
+    };
+  }
+  if (bankFilter) {
+    // We need to use aggregation to filter by populated bank name
+    // For now, we'll handle this in the query by using a lookup
+  }
+  if (customerFilter && !accountId) {
+    filter.$or = [
+      { receiverName: { $regex: customerFilter, $options: "i" } },
+      { senderName: { $regex: customerFilter, $options: "i" } },
+    ];
+  } else if (customerFilter && accountId) {
+    filter.$and = [
+      { $or: [{ paidBy: accountId }, { payTo: accountId }] },
+      {
+        $or: [
+          { receiverName: { $regex: customerFilter, $options: "i" } },
+          { senderName: { $regex: customerFilter, $options: "i" } },
+        ],
+      },
+    ];
+    delete filter.$or;
+  }
   if (dateFrom || dateTo) {
     filter.dueDate = {};
-    if (dateFrom) (filter.dueDate as Record<string, unknown>).$gte = new Date(dateFrom);
-    if (dateTo) (filter.dueDate as Record<string, unknown>).$lte = new Date(dateTo);
+    if (dateFrom) {
+      const fromDate = new Date(dateFrom);
+      fromDate.setHours(0, 0, 0, 0);
+      (filter.dueDate as Record<string, unknown>).$gte = fromDate;
+    }
+    if (dateTo) {
+      const toDate = new Date(dateTo);
+      toDate.setHours(23, 59, 59, 999);
+      (filter.dueDate as Record<string, unknown>).$lte = toDate;
+    }
   }
 
   try {
-    const checkTransactions = await CheckTransaction.find(filter)
-      .populate("paidBy payTo toBank")
-      .sort({ createdAt: -1 });
-    return NextResponse.json({ checkTransactions });
+    const skip = (page - 1) * limit;
+
+    let checkTransactions;
+    let total;
+
+    if (bankFilter) {
+      // Use aggregation pipeline for bank filtering
+      const pipeline = [
+        {
+          $lookup: {
+            from: "banks",
+            localField: "toBank",
+            foreignField: "_id",
+            as: "toBankData",
+          },
+        },
+        {
+          $match: {
+            ...filter,
+            "toBankData.name": { $regex: bankFilter, $options: "i" },
+          },
+        },
+        {
+          $lookup: {
+            from: "detailedaccounts",
+            localField: "paidBy",
+            foreignField: "_id",
+            as: "paidByData",
+          },
+        },
+        {
+          $lookup: {
+            from: "detailedaccounts",
+            localField: "payTo",
+            foreignField: "_id",
+            as: "payToData",
+          },
+        },
+        {
+          $addFields: {
+            toBank: { $arrayElemAt: ["$toBankData", 0] },
+            paidBy: { $arrayElemAt: ["$paidByData", 0] },
+            payTo: { $arrayElemAt: ["$payToData", 0] },
+          },
+        },
+        { $sort: { createdAt: -1 } },
+        { $skip: skip },
+        { $limit: limit },
+      ];
+
+      checkTransactions = await CheckTransaction.aggregate(pipeline);
+
+      // Count total for pagination
+      const countPipeline = [
+        {
+          $lookup: {
+            from: "banks",
+            localField: "toBank",
+            foreignField: "_id",
+            as: "toBankData",
+          },
+        },
+        {
+          $match: {
+            ...filter,
+            "toBankData.name": { $regex: bankFilter, $options: "i" },
+          },
+        },
+        { $count: "total" },
+      ];
+
+      const countResult = await CheckTransaction.aggregate(countPipeline);
+      total = countResult[0]?.total || 0;
+    } else {
+      checkTransactions = await CheckTransaction.find(filter)
+        .populate("paidBy payTo toBank")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit);
+
+      total = await CheckTransaction.countDocuments(filter);
+    }
+
+    const totalPages = Math.ceil(total / limit);
+
+    return NextResponse.json({
+      checkTransactions,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalRecords: total,
+        limit,
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       { error: "An error occurred: " + error },
@@ -61,24 +191,15 @@ export const GET = async (req: NextRequest) => {
     );
   }
 };
-
-// POST: Create a new check transaction and update inbox
+// POST: Create a new check transaction
 export const POST = async (req: NextRequest) => {
   await connect();
   try {
     const body = await req.json();
     const checkTransaction = await CheckTransaction.create(body);
 
-    // Update inbox based on check type and status
-    if (body.type === "income" && body.status === "nazeSandogh") {
-      await updateInbox(
-        body.payTo,
-        checkTransaction._id,
-        body.inboxStatus || "darJaryanVosool",
-        "add",
-        body.amount
-      );
-    }
+    // Create daily book entry for the check
+    await createDailyBookForCheck(checkTransaction);
 
     return NextResponse.json({ checkTransaction }, { status: 201 });
   } catch (error) {
@@ -88,71 +209,7 @@ export const POST = async (req: NextRequest) => {
     );
   }
 };
-
-// Helper function to update inbox
-const updateInbox = async (
-  ownerId: string,
-  checkId: string,
-  status: string,
-  action: "add" | "remove" | "move",
-  checkAmount?: number
-) => {
-  try {
-    let inbox = await Inbox.findOne({ owner: ownerId });
-
-    if (!inbox) {
-      inbox = await Inbox.create({
-        owner: ownerId,
-        balance: 0,
-        checkStatuses: {
-          nazeSandogh: [],
-          darJaryanVosool: [],
-          vosoolShode: [],
-          bargashti: [],
-          enteghalDadeShode: [],
-        },
-      });
-    }
-
-    if (action === "add") {
-      if (!inbox.checkStatuses.get(status)) {
-        inbox.checkStatuses.set(status, []);
-      }
-      inbox.checkStatuses.get(status).push(checkId);
-
-// Update balance for nazeSandogh status
-      if (status === "nazeSandogh" && checkAmount) {
-        inbox.balance += checkAmount;
-      }
-    } else if (action === "remove") {
-      // Remove from all status arrays and update balance
-      [
-        "nazeSandogh",
-        "darJaryanVosool",
-        "vosoolShode",
-        "bargashti",
-        "enteghalDadeShode",
-      ].forEach((s) => {
-        const arr = inbox.checkStatuses.get(s) || [];
-        const index = arr.indexOf(checkId);
-        if (index > -1) {
-          arr.splice(index, 1);
-          // Subtract from balance if removing from nazeSandogh
-          if (s === "nazeSandogh" && checkAmount) {
-            inbox.balance -= checkAmount;
-          }
-        }
-      });
-    }
-
-    inbox.lastUpdated = new Date();
-    await inbox.save();
-  } catch (error) {
-    console.error("Error updating inbox:", error);
-  }
-};
-
-// PATCH: Update a check transaction and manage inbox status
+// PATCH: Update a check transaction
 export const PATCH = async (req: NextRequest) => {
   await connect();
   const id = req.headers.get("id");
@@ -166,71 +223,16 @@ export const PATCH = async (req: NextRequest) => {
 
   try {
     const body = await req.json();
-    const oldCheck = await CheckTransaction.findById(id);
-
-    if (!oldCheck) {
-      return NextResponse.json(
-        { error: "Check transaction not found" },
-        { status: 404 }
-      );
-    }
-
     const checkTransaction = await CheckTransaction.findByIdAndUpdate(
       id,
       body,
-      {
-        new: true,
-      }
+      { new: true }
     );
 
-    // Update inbox if status changed and it's an income check
-    if (
-      body.status &&
-      body.status !== oldCheck.status &&
-      oldCheck.type === "income"
-    ) {
-      // Remove from old status if it was nazeSandogh
-      if (oldCheck.status === "nazeSandogh") {
-        await updateInbox(
-          oldCheck.payTo,
-          id,
-          oldCheck.inboxStatus || "darJaryanVosool",
-          "remove",
-          oldCheck.amount
-        );
-      }
-      // Add to new status if it's nazeSandogh
-      if (body.status === "nazeSandogh") {
-        await updateInbox(
-          oldCheck.payTo,
-          id,
-          body.inboxStatus || "darJaryanVosool",
-          "add",
-          oldCheck.amount
-        );
-      }
-    }
-
-    // Update inbox if inboxStatus changed and status is nazeSandogh
-    if (
-      body.inboxStatus &&
-      body.inboxStatus !== oldCheck.inboxStatus &&
-      oldCheck.status === "nazeSandogh" &&
-      oldCheck.type === "income"
-    ) {
-      await updateInbox(
-        oldCheck.payTo,
-        id,
-        oldCheck.inboxStatus || "darJaryanVosool",
-        "remove",
-        oldCheck.amount
-      );
-      await updateInbox(
-        oldCheck.payTo,
-        id,
-        body.inboxStatus,
-        "add",
-        oldCheck.amount
+    if (!checkTransaction) {
+      return NextResponse.json(
+        { error: "Check transaction not found" },
+        { status: 404 }
       );
     }
 
@@ -242,8 +244,7 @@ export const PATCH = async (req: NextRequest) => {
     );
   }
 };
-
-// DELETE: Delete a check transaction and update inbox
+// DELETE: Delete a check transaction
 export const DELETE = async (req: NextRequest) => {
   await connect();
   const id = req.headers.get("id");
@@ -256,7 +257,7 @@ export const DELETE = async (req: NextRequest) => {
   }
 
   try {
-    const checkTransaction = await CheckTransaction.findById(id);
+    const checkTransaction = await CheckTransaction.findByIdAndDelete(id);
     if (!checkTransaction) {
       return NextResponse.json(
         { error: "Check transaction not found" },
@@ -264,21 +265,6 @@ export const DELETE = async (req: NextRequest) => {
       );
     }
 
-    // Remove from inbox if it's an income check with nazeSandogh status
-    if (
-      checkTransaction.type === "income" &&
-      checkTransaction.status === "nazeSandogh"
-    ) {
-      await updateInbox(
-        checkTransaction.payTo,
-        id,
-        checkTransaction.inboxStatus || "darJaryanVosool",
-        "remove",
-        checkTransaction.amount
-      );
-    }
-
-    await CheckTransaction.findByIdAndDelete(id);
     return NextResponse.json({
       message: "Check transaction deleted successfully",
     });

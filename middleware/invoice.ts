@@ -10,62 +10,9 @@ import { findFixedAccountByDetailedId } from "@/services/accountService";
 import { createDailyBookEntryForInvoice } from "@/services/dailyBookService";
 
 // Get all invoices with pagination and optional filtering
-export async function getInvoices(req?: NextRequest) {
+export async function getInvoices() {
   try {
-    let filter: any = {};
-    let page = 1;
-    let limit = 10;
-
-    if (req) {
-      const { searchParams } = new URL(req.url);
-      
-      // Handle code filter
-      const code = searchParams.get('code');
-      if (code) {
-        filter.code = { $regex: code, $options: 'i' };
-      }
-      
-      // Handle customer filter (search by name)
-      const customer = searchParams.get('customer');
-      if (customer) {
-        const matchingCustomers = await Customer.find({
-          name: { $regex: customer, $options: 'i' }
-        }).select('_id');
-        
-        if (matchingCustomers.length > 0) {
-          filter.customer = { $in: matchingCustomers.map(c => c._id) };
-        } else {
-          filter.customer = null;
-        }
-      }
-      
-      // Handle status filter
-      const status = searchParams.get('status');
-      if (status) {
-        filter.status = status;
-      }
-      
-      // Handle production date range filters
-      const productionDateFrom = searchParams.get('productionDate_from');
-      const productionDateTo = searchParams.get('productionDate_to');
-      if (productionDateFrom || productionDateTo) {
-        filter.productionDate = {};
-        if (productionDateFrom) filter.productionDate.$gte = new Date(productionDateFrom);
-        if (productionDateTo) filter.productionDate.$lte = new Date(productionDateTo);
-      }
-      
-      // Pagination
-      page = Math.max(1, parseInt(searchParams.get('page') || '1'));
-      limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10')));
-    }
-
-    const skip = (page - 1) * limit;
-    
-    // Get total count for pagination
-    const totalItems = await Invoice.countDocuments(filter);
-    const totalPages = Math.ceil(totalItems / limit);
-
-    const invoices = await Invoice.find(filter)
+    const invoices = await Invoice.find()
       .populate({
         path: "customer",
         model: Customer,
@@ -78,28 +25,21 @@ export async function getInvoices(req?: NextRequest) {
         path: "priority",
         model: Priority,
       })
+      // .populate({
+      //   path: "designNumber",
+      //   model: Design,
+      // })
       .populate({
         path: "layers.glass",
         model: Glass,
       })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
-
-    // Build pagination info
-    const pagination = {
-      currentPage: page,
-      totalPages,
-      totalItems,
-      itemsPerPage: limit,
-      hasNextPage: page < totalPages,
-      hasPrevPage: page > 1
-    };
-
-    return NextResponse.json({ 
-      invoices,
-      pagination 
-    });
+      // .populate({
+      //   path: "layers.treatments.treatment",
+      //   model: GlassTreatment,
+      // });
+    const test=await findFixedAccountByDetailedId('68906cd884535feb0ba9ef0e')
+    console.log(test,"test")
+    return NextResponse.json(invoices);
   } catch (error) {
     console.error("Error fetching invoices:", error);
     return NextResponse.json(

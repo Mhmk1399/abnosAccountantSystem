@@ -36,6 +36,12 @@ export interface SalaryLaws {
   createdAt?: Date;
   updatedAt?: Date;
 }
+interface IStaff {
+  _id: string;
+  name: string;
+  title: string;
+}
+
 interface IRollcall {
   _id: string;
   staff: {
@@ -121,18 +127,39 @@ const Rollcall: React.FC = () => {
 
       await fetchSalaryLaws(year);
 
-      const response = await fetch(
-        `/api/salaryandpersonels/rollcall?month=${month}&year=${year}`
-      );
-      const data = await response.json();
-
-      if (Array.isArray(data) && data.length > 0) {
-        setRollcallData(data);
-      } else if (data.rollcall && data.rollcall.length > 0) {
-        setRollcallData(data.rollcall);
-      } else {
-        setRollcallData([]);
+      // Fetch staff data
+      const staffResponse = await fetch('/api/salaryandpersonels/staff');
+      const staffData = await staffResponse.json();
+      
+      // Fetch rollcall data
+      let rollcallData = [];
+      try {
+        const rollcallResponse = await fetch(
+          `/api/salaryandpersonels/rollcall?month=${month}&year=${year}`
+        );
+        const rollcallResult = await rollcallResponse.json();
+        rollcallData = Array.isArray(rollcallResult) ? rollcallResult : rollcallResult.rollcall || [];
+      } catch (error) {
+        console.log("No rollcall data available");
       }
+
+      // Combine staff with rollcall data
+      const combined = (staffData.staff || []).map((staff: IStaff) => {
+        const existingRollcall = rollcallData.find((r: IRollcall) => r.staff._id === staff._id);
+        return existingRollcall || {
+          _id: staff._id,
+          staff: {
+            _id: staff._id,
+            name: staff.name,
+            title: staff.title
+          },
+          month,
+          year,
+          days: []
+        };
+      });
+      
+      setRollcallData(combined);
     } catch (error) {
       console.log("Failed to fetch rollcall data:", error);
     } finally {
@@ -488,7 +515,7 @@ const Rollcall: React.FC = () => {
                           todayRecord?.status || "absent"
                         )}`}
                       >
-                        {getStatusDisplay(todayRecord?.status || "absent")}
+                        {todayRecord?.status ? getStatusDisplay(todayRecord.status) : "--"}
                       </span>
                     </td>
                     <td className="p-3 border-r text-center">
@@ -554,8 +581,9 @@ const Rollcall: React.FC = () => {
               برو به تاریخ
             </button>
             {showDatePicker && (
-              <div className="relative">
+              <div className=" ">
                 <DatePicker
+                className=" z-50"
                   calendar={persian}
                   locale={persian_fa}
                   value={selectedDate}

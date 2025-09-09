@@ -2,7 +2,6 @@
 
 import React, { useState, useRef } from "react";
 import DynamicTable from "@/components/global/DynamicTable";
-import TableFilters, { FilterConfig } from "@/components/global/TableFilters";
 import { TableConfig } from "@/types/tables";
 import { HiOutlineUserAdd } from "react-icons/hi";
 import DynamicModal, { ModalConfig } from "@/components/global/DynamicModal";
@@ -44,7 +43,6 @@ const Staff: React.FC = () => {
   const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
   const [modalConfig, setModalConfig] = useState<ModalConfig | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [filters, setFilters] = useState<Record<string, string | number>>({});
   const tableRef = useRef<{ refreshData: () => void }>(null);
 
   const handleAddClick = () => {
@@ -171,58 +169,9 @@ const Staff: React.FC = () => {
     }
   };
 
-  const filterConfig: FilterConfig = {
-    fields: [
-      {
-        key: "name",
-        label: "نام کارمند",
-        type: "text",
-        placeholder: "جستجو در نام کارمند..."
-      },
-      {
-        key: "nationalId",
-        label: "کد ملی",
-        type: "text",
-        placeholder: "جستجو در کد ملی..."
-      },
-      {
-        key: "position",
-        label: "موقعیت شغلی",
-        type: "text",
-        placeholder: "جستجو در موقعیت شغلی..."
-      },
-      {
-        key: "isActive",
-        label: "وضعیت فعالیت",
-        type: "select",
-        options: [
-          { value: "true", label: "فعال" },
-          { value: "false", label: "غیرفعال" }
-        ]
-      },
-      {
-        key: "ismaried",
-        label: "وضعیت تاهل",
-        type: "select",
-        options: [
-          { value: "true", label: "متاهل" },
-          { value: "false", label: "مجرد" }
-        ]
-      },
-      {
-        key: "contracthireDate",
-        label: "تاریخ استخدام",
-        type: "dateRange"
-      }
-    ],
-    onFiltersChange: setFilters
-  };
-
   const staffTableConfig: TableConfig = {
     endpoint: "/api/salaryandpersonels/staff",
     responseHandler: (res) => res.staff,
-    filters,
-    itemsPerPage: 10,
     title: "لیست کارمندان",
     description: "مدیریت کارمندان",
     columns: [
@@ -236,7 +185,7 @@ const Staff: React.FC = () => {
         key: "workExperience",
         label: "سابقه کار",
         render: (value: unknown, row: Staff) => {
-          console.log(value)
+          console.log(value);
           if (row.contracthireDate) {
             const hireDate = new Date(row.contracthireDate);
             const now = new Date();
@@ -275,9 +224,24 @@ const Staff: React.FC = () => {
         sortable: true,
       },
       { key: "contractendDate", label: "تاریخ پایان قرارداد", type: "date" },
-      { key: "baseSalary", label: "حقوق پایه" },
-      { key: "annualrewards", label: "پاداش سالانه" },
-      { key: "hourlywage", label: "دستمزد ساعتی" },
+      {
+        key: "baseSalary",
+        label: "حقوق پایه",
+        render: (value: unknown) =>
+          value ? Number(value).toLocaleString() : "-",
+      },
+      {
+        key: "annualrewards",
+        label: "پاداش سالانه",
+        render: (value: unknown) =>
+          value ? Number(value).toLocaleString() : "-",
+      },
+      {
+        key: "hourlywage",
+        label: "دستمزد ساعتی",
+        render: (value: unknown) =>
+          value ? Number(value).toLocaleString() : "-",
+      },
       {
         key: "isActive",
         label: "وضعیت",
@@ -317,27 +281,76 @@ const Staff: React.FC = () => {
           { value: "خانم", label: "خانم" },
         ],
       },
-      { key: "name", label: "نام", type: "text", required: true },
-      { key: "fatherName", label: "نام پدر", type: "text", required: true },
+      {
+        key: "name",
+        label: "نام",
+        type: "text",
+        required: true,
+        placeholder: "نام کارمند را وارد کنید",
+      },
+      {
+        key: "fatherName",
+        label: "نام پدر",
+        type: "text",
+        required: true,
+        placeholder: "نام پدر را وارد کنید",
+      },
       {
         key: "machineidNumber",
         label: "شماره دستگاه",
         type: "number",
         required: false,
+        placeholder: "شماره دستگاه (اختیاری)",
       },
-      { key: "birthPlace", label: "محل تولد", type: "text", required: true },
+      {
+        key: "birthPlace",
+        label: "محل تولد",
+        type: "text",
+        required: true,
+        placeholder: "محل تولد را وارد کنید",
+      },
       { key: "birthDate", label: "تاریخ تولد", type: "date", required: true },
-      { key: "nationalId", label: "کد ملی", type: "number", required: true },
+      {
+        key: "nationalId",
+        label: "کد ملی",
+        type: "number",
+        required: true,
+        placeholder: "کد ملی 10 رقمی",
+      },
       {
         key: "insuranceNumber",
         label: "شماره بیمه",
         type: "number",
         required: false,
+        placeholder: "شماره بیمه (اختیاری)",
       },
-      { key: "address", label: "آدرس", type: "textarea", required: true },
-      { key: "postalCode", label: "کد پستی", type: "number", required: false },
-      { key: "homePhone", label: "تلفن ثابت", type: "number" },
-      { key: "mobilePhone", label: "موبایل", type: "number", required: true },
+      {
+        key: "address",
+        label: "آدرس",
+        type: "textarea",
+        required: true,
+        placeholder: "آدرس کامل محل سکونت",
+      },
+      {
+        key: "postalCode",
+        label: "کد پستی",
+        type: "number",
+        required: false,
+        placeholder: "کد پستی 10 رقمی",
+      },
+      {
+        key: "homePhone",
+        label: "تلفن ثابت",
+        type: "number",
+        placeholder: "شماره تلفن ثابت",
+      },
+      {
+        key: "mobilePhone",
+        label: "موبایل",
+        type: "number",
+        required: true,
+        placeholder: "شماره موبایل",
+      },
       {
         key: "contracthireDate",
         label: "تاریخ شروع قرارداد",
@@ -384,13 +397,30 @@ const Staff: React.FC = () => {
           return "";
         },
       },
-      { key: "position", label: "موقعیت شغلی", type: "text", required: true },
-      { key: "workplace", label: "محل کار", type: "text", required: true },
+      {
+        key: "position",
+        label: "موقعیت شغلی",
+        type: "select",
+        required: true,
+        options: [
+          { value: "factory", label: "کارگر" },
+          { value: "office", label: "اداری" },
+          { value: "management", label: "مدیریت" },
+        ],
+      },
+      {
+        key: "workplace",
+        label: "محل کار",
+        type: "text",
+        required: true,
+        placeholder: "محل کار را وارد کنید",
+      },
       {
         key: "educationLevel",
         label: "سطح تحصیلات",
         type: "text",
         required: true,
+        placeholder: "مثال: دیپلم، لیسانس، فوق لیسانس",
       },
 
       { key: "contractendDate", label: "تاریخ پایان قرارداد", type: "date" },
@@ -398,9 +428,16 @@ const Staff: React.FC = () => {
         key: "childrenCounts",
         label: "تعداد فرزندان",
         type: "number",
+
         required: true,
+        placeholder: "تعداد فرزندان",
       },
-      { key: "personalNumber", label: "شماره پرسنلی", type: "text" },
+      {
+        key: "personalNumber",
+        label: "شماره پرسنلی",
+        type: "text",
+        placeholder: "شماره پرسنلی (اختیاری)",
+      },
       {
         key: "ismaried",
         label: "وضعیت تاهل",
@@ -411,9 +448,25 @@ const Staff: React.FC = () => {
           { value: false, label: "مجرد" },
         ],
       },
-      { key: "baseSalary", label: "حقوق پایه", type: "number", required: true },
-      { key: "annualrewards", label: "پاداش سالانه", type: "number" },
-      { key: "hourlywage", label: "دستمزد ساعتی", type: "number" },
+      {
+        key: "baseSalary",
+        label: "حقوق پایه",
+        type: "formatted-number",
+        required: true,
+        placeholder: "مبلغ حقوق پایه",
+      },
+      {
+        key: "annualrewards",
+        label: "پاداش سالانه",
+        type: "formatted-number",
+        placeholder: "مبلغ پاداش سالانه",
+      },
+      {
+        key: "hourlywage",
+        label: "دستمزد ساعتی",
+        type: "formatted-number",
+        placeholder: "مبلغ دستمزد ساعتی",
+      },
       {
         key: "isActive",
         label: "وضعیت فعالیت",
@@ -429,7 +482,7 @@ const Staff: React.FC = () => {
   });
 
   return (
-    <div className="container mx-auto py-8" dir="rtl">
+    <div>
       <div className="flex justify-end mb-4">
         <button
           onClick={handleAddClick}
@@ -439,7 +492,6 @@ const Staff: React.FC = () => {
           افزودن کارمند
         </button>
       </div>
-      <TableFilters config={filterConfig} />
       <DynamicTable ref={tableRef} config={staffTableConfig} />
       {modalConfig && (
         <DynamicModal

@@ -34,6 +34,12 @@ const FiscalYearForm = ({ onSuccess }: FiscalYearFormProps) => {
         required: true,
       },
       {
+        name: "taxRate",
+        label: "نرخ مالیات (%)",
+        type: "number",
+        required: true,
+      },
+      {
         name: "endDate",
         label: "تاریخ پایان",
         type: "persian-date",

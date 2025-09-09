@@ -155,7 +155,6 @@ export const useTableToPng = (): UseTableToPngReturn => {
         const thead = document.createElement("thead");
         const headerRow = document.createElement("tr");
         headerRow.style.backgroundColor = "#f8f9fa";
-
         headers.forEach((header) => {
           const th = document.createElement("th");
           th.textContent = header;

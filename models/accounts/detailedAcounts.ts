@@ -7,7 +7,6 @@ const DetailedAccountSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-
     description: {
       type: String,
       required: true,
@@ -32,11 +31,13 @@ const DetailedAccountSchema = new mongoose.Schema(
     fiscalType: {
       type: String,
       enum: ["permanat", "temparary"],
+      default: "permanat",
     },
     type: {
       type: String,
       required: true,
       enum: ["debit", "credit"],
+      default: "debit",
     },
     fiscalYear: {
       type: mongoose.Schema.Types.ObjectId,

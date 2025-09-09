@@ -2,10 +2,10 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import DynamicTable from "@/components/global/DynamicTable";
-import TableFilters, { FilterConfig } from "@/components/global/TableFilters";
 import { TableConfig } from "@/types/tables";
 import { HiOutlineUserAdd } from "react-icons/hi";
 import DynamicModal, { ModalConfig } from "@/components/global/DynamicModal";
+import FormattedNumberInput from "@/utils/FormattedNumberInput";
 import toast from "react-hot-toast";
 
 export interface Deficit extends Record<string, unknown> {
@@ -61,15 +61,16 @@ export interface Staff {
 }
 
 const Deficit: React.FC = () => {
+  const [currentView, setCurrentView] = useState<'staff' | 'deficits'>('staff');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDeficit, setSelectedDeficit] = useState<Deficit | null>(null);
   const [modalConfig, setModalConfig] = useState<ModalConfig | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [filters, setFilters] = useState<Record<string, string | number>>({});
   const tableRef = useRef<{ refreshData: () => void }>(null);
   const [staffOptions, setStaffOptions] = useState<
     { value: string; label: string }[]
   >([]);
+  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
 
   useEffect(() => {
     const fetchStaff = async () => {
@@ -97,7 +98,17 @@ const Deficit: React.FC = () => {
     setSelectedItemId(null);
   };
 
-  const handleAddClick = () => {
+  const handleAddDeficitForStaff = (staff: Staff) => {
+    setSelectedStaff(staff);
+    setSelectedDeficit(null);
+    setSelectedItemId(null);
+    setModalConfig(
+      deficitFormConfigForStaff(staff, handleFormSuccess, handleCloseModal)
+    );
+    setIsModalOpen(true);
+  };
+
+  const handleAddDeficit = () => {
     setSelectedDeficit(null);
     setSelectedItemId(null);
     setModalConfig(
@@ -167,59 +178,9 @@ const Deficit: React.FC = () => {
     }
   };
 
-  const filterConfig: FilterConfig = {
-    fields: [
-      {
-        key: "staff",
-        label: "کارمند",
-        type: "text",
-        placeholder: "جستجو در نام کارمند..."
-      },
-      {
-        key: "type",
-        label: "نوع کسورات",
-        type: "select",
-        options: [
-          { value: "buy glass", label: "خرید شیشه" },
-          { value: "loanes", label: "وام" },
-          { value: "punishment", label: "جریمه" },
-          { value: "help", label: "مساعده" }
-        ]
-      },
-      {
-        key: "year",
-        label: "سال",
-        type: "text",
-        placeholder: "جستجو در سال..."
-      },
-      {
-        key: "month",
-        label: "ماه",
-        type: "select",
-        options: [
-          { value: "1", label: "فروردین" },
-          { value: "2", label: "اردیبهشت" },
-          { value: "3", label: "خرداد" },
-          { value: "4", label: "تیر" },
-          { value: "5", label: "مرداد" },
-          { value: "6", label: "شهریور" },
-          { value: "7", label: "مهر" },
-          { value: "8", label: "آبان" },
-          { value: "9", label: "آذر" },
-          { value: "10", label: "دی" },
-          { value: "11", label: "بهمن" },
-          { value: "12", label: "اسفند" }
-        ]
-      }
-    ],
-    onFiltersChange: setFilters
-  };
-
   const deficitTableConfig: TableConfig = {
     endpoint: "/api/salaryandpersonels/deficits",
     responseHandler: (res) => res.deficit,
-    filters,
-    itemsPerPage: 10,
     title: "لیست کسورات",
     description: "مدیریت کسورات",
     columns: [
@@ -262,30 +223,7 @@ const Deficit: React.FC = () => {
         render: (value) => Number(value).toLocaleString(),
       },
       { key: "day", label: "روز", sortable: true },
-      {
-        key: "month",
-        label: "ماه",
-        sortable: true,
-        render: (value: unknown): React.ReactNode => {
-          const monthNames = {
-            1: "فروردین",
-            2: "اردیبهشت",
-            3: "خرداد",
-            4: "تیر",
-            5: "مرداد",
-            6: "شهریور",
-            7: "مهر",
-            8: "آبان",
-            9: "آذر",
-            10: "دی",
-            11: "بهمن",
-            12: "اسفند"
-          };
-          return typeof value === "number" && value >= 1 && value <= 12
-            ? monthNames[value as keyof typeof monthNames]
-            : "-";
-        }
-      },
+      { key: "month", label: "ماه", sortable: true },
       { key: "year", label: "سال", sortable: true },
       { key: "description", label: "توضیحات" },
     ],
@@ -295,6 +233,54 @@ const Deficit: React.FC = () => {
     },
     onEdit: handleEditClick,
     onDelete: handleDeleteClick,
+  };
+
+  const deficitFormConfigForStaff = (
+    staff: Staff,
+    onSuccess: () => void,
+    onClose: () => void
+  ): ModalConfig => {
+    const now = new Date();
+    const persianDate = now.toLocaleDateString('fa-IR-u-nu-latn').split('/');
+    return {
+      title: `افزودن کسورات برای ${staff.name}`,
+      endpoint: `/api/salaryandpersonels/deficits`,
+      method: "POST",
+      type: "create",
+      onClose,
+      initialData: {
+        staff: staff._id,
+        day: parseInt(persianDate[2]),
+        month: parseInt(persianDate[1]),
+        year: parseInt(persianDate[0]),
+      },
+      fields: [
+        { key: "staff", label: "", type: "hidden" },
+        {
+          key: "type",
+          label: "نوع",
+          type: "select",
+          required: true,
+          options: [
+            { value: "buy glass", label: "خرید شیشه" },
+            { value: "punishment", label: "جریمه" },
+            { value: "help", label: "مساعده" },
+          ],
+        },
+        { key: "amount", label: "مبلغ", type: "formatted-number", required: true, placeholder: "مبلغ کسورات" },
+        {
+          key: "description",
+          label: "توضیحات",
+          type: "textarea",
+          required: true,
+          placeholder: "توضیحات کسورات را وارد کنید"
+        },
+        { key: "day", label: "", type: "hidden" },
+        { key: "month", label: "", type: "hidden" },
+        { key: "year", label: "", type: "hidden" },
+      ],
+      onSuccess,
+    };
   };
 
   const deficitFormConfig = (
@@ -324,57 +310,99 @@ const Deficit: React.FC = () => {
         required: true,
         options: [
           { value: "buy glass", label: "خرید شیشه" },
-          { value: "loanes", label: "وام" },
           { value: "punishment", label: "جریمه" },
           { value: "help", label: "مساعده" },
         ],
       },
-      { key: "amount", label: "مبلغ", type: "number", required: true },
-      {
-        key: "month",
-        label: "ماه",
-        type: "number",
-        required: true,
-        // min: 1,
-        // max: 12,
-      },
-      { key: "year", label: "سال", type: "number", required: true },
-      {
-        key: "day",
-        label: "روز",
-        type: "number",
-        required: true,
-        // min: 1,
-        // max: 31,
-      },
+      { key: "amount", label: "مبلغ", type: "formatted-number", required: true, placeholder: "مبلغ کسورات" },
+      { key: "month", label: "ماه", type: "number", required: true, placeholder: "ماه (1-12)" },
+      { key: "year", label: "سال", type: "number", required: true, placeholder: "سال (مثال: 1403)" },
+      { key: "day", label: "روز", type: "number", required: true, placeholder: "روز (1-31)" },
       {
         key: "description",
         label: "توضیحات",
         type: "textarea",
         required: true,
+        placeholder: "توضیحات کسورات را وارد کنید"
       },
     ],
     onSuccess,
   });
 
+  const staffTableConfig: TableConfig = {
+    endpoint: "/api/salaryandpersonels/staff",
+    responseHandler: (res) => res.staff,
+    title: "لیست کارمندان",
+    description: "افزودن کسورات برای کارمندان",
+    columns: [
+      { key: "name", label: "نام", sortable: true },
+      { key: "title", label: "عنوان", sortable: true },
+      { key: "position", label: "سمت", sortable: true },
+      { key: "mobilePhone", label: "موبایل" },
+    ],
+    actions: {
+      custom: [
+        {
+          label: "افزودن کسورات",
+          onClick: handleAddDeficitForStaff,
+          className: "bg-red-500 hover:bg-red-600 text-white",
+        },
+      ],
+    },
+  };
+
+  const renderContent = () => {
+    switch (currentView) {
+      case 'staff':
+        return <DynamicTable ref={tableRef} config={staffTableConfig} />;
+      case 'deficits':
+        return <DynamicTable ref={tableRef} config={deficitTableConfig} />;
+      default:
+        return <DynamicTable ref={tableRef} config={staffTableConfig} />;
+    }
+  };
+
   return (
-    <div className="container mx-auto py-8" dir="rtl">
-      <div className="flex justify-end mb-4">
-        <button
-          onClick={handleAddClick}
-          className="bg-blue-500 text-white px-4 py-2 rounded-md flex items-center"
-        >
-          <HiOutlineUserAdd className="ml-2" />
-          افزودن کسورات
-        </button>
+    <div>
+      <div className="flex justify-between mb-4">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setCurrentView('staff')}
+            className={`px-4 py-2 rounded-md ${
+              currentView === 'staff'
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-200 text-gray-700'
+            }`}
+          >
+            کارمندان
+          </button>
+          <button
+            onClick={() => setCurrentView('deficits')}
+            className={`px-4 py-2 rounded-md ${
+              currentView === 'deficits'
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-200 text-gray-700'
+            }`}
+          >
+            لیست کسورات
+          </button>
+        </div>
+        {currentView === 'deficits' && (
+          <button
+            onClick={handleAddDeficit}
+            className="bg-blue-500 text-white px-4 py-2 rounded-md flex items-center"
+          >
+            <HiOutlineUserAdd className="ml-2" />
+            افزودن کسورات
+          </button>
+        )}
       </div>
-      <TableFilters config={filterConfig} />
-      <DynamicTable ref={tableRef} config={deficitTableConfig} />
+      {renderContent()}
       {modalConfig && (
         <DynamicModal
           isOpen={isModalOpen}
           config={modalConfig}
-          initialData={selectedDeficit || {}}
+          initialData={modalConfig.initialData || selectedDeficit || {}}
           itemId={selectedItemId}
         />
       )}

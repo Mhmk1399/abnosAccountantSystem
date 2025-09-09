@@ -17,7 +17,30 @@ export interface TableColumn {
     | "textarea";
   sortable?: boolean;
   width?: string;
-  render?: (value: any, row: any) => React.ReactNode;
+  render?: (
+    value:
+      | Record<string, unknown>[string]
+      | string
+      | number
+      | boolean
+      | undefined,
+    row: Record<string, unknown>
+  ) => React.ReactNode;
+  filterable?: boolean;
+  filterType?:
+    | "text"
+    | "dateRange"
+    | "numberRange"
+    | "select"
+    | "boolean"
+    | "custom"
+    | "date"
+    | "number";
+  filterKey?: string;
+  filterOptions?: { value: string; label: string }[];
+  placeholder?: string;
+  min?: number;
+  max?: number;
 }
 export interface CustomAction {
   label: string;
@@ -35,7 +58,7 @@ export interface TableConfig {
   columns: TableColumn[];
   filters?: Record<string, any>;
   filterParams?: Record<string, string>;
-  itemsPerPage?: number; // Frontend controls pagination size
+  enableFilters?: boolean;
   key?: string;
   actions?: {
     view?: boolean;

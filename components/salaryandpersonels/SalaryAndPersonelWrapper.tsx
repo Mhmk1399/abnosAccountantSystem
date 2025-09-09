@@ -102,8 +102,8 @@ const SalaryAndPersonelWrapper: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="container mx-auto p-6">
+    <div className="min-h-screen">
+      <div className="max-w-[90rem] mx-auto">
         {/* Header Section */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
           <div className="text-center">

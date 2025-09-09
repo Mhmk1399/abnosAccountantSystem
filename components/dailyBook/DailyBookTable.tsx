@@ -2,11 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useDailyBook } from "@/contexts/DailyBookContext";
-import {
-  FaSearch,
-  FaCalendarAlt,
-  FaFileExcel,
-} from "react-icons/fa";
+import { FaSearch, FaCalendarAlt, FaFileExcel } from "react-icons/fa";
 import { HiOutlineDownload } from "react-icons/hi";
 import DatePicker from "react-multi-date-picker";
 import persian from "react-date-object/calendars/persian";
@@ -37,7 +33,10 @@ interface DailyBook {
   creditEntries?: DailyBookEntry[];
 }
 
-type TableRowData = Record<string, string | number | boolean | null | undefined>;
+type TableRowData = Record<
+  string,
+  string | number | boolean | null | undefined
+>;
 
 interface ExtendedEntry extends DailyBookEntry {
   entryType: "debit" | "credit";
@@ -57,6 +56,7 @@ const DailyBookTable: React.FC<DailyBookTableProps> = ({
     accountGroups,
     totalAccounts,
     fixedAccounts,
+    detailedAccounts,
     loading,
     deleteDailyBook,
   } = useDailyBook();
@@ -68,6 +68,7 @@ const DailyBookTable: React.FC<DailyBookTableProps> = ({
   const [selectedAccountGroup, setSelectedAccountGroup] = useState("");
   const [selectedTotalAccount, setSelectedTotalAccount] = useState("");
   const [selectedFixedAccount, setSelectedFixedAccount] = useState("");
+  const [selectedDetailedAccount, setSelectedDetailedAccount] = useState("");
   const [minAmount, setMinAmount] = useState<number | "">("");
   const [maxAmount, setMaxAmount] = useState<number | "">("");
 
@@ -182,6 +183,24 @@ const DailyBookTable: React.FC<DailyBookTableProps> = ({
       });
     }
 
+    if (selectedDetailedAccount) {
+      filtered = filtered.filter((book) => {
+        const debitMatch =
+          book.debitEntries?.some(
+            (entry: DailyBookEntry) =>
+              entry.detailed1 === selectedDetailedAccount ||
+              entry.detailed2 === selectedDetailedAccount
+          ) || false;
+        const creditMatch =
+          book.creditEntries?.some(
+            (entry: DailyBookEntry) =>
+              entry.detailed1 === selectedDetailedAccount ||
+              entry.detailed2 === selectedDetailedAccount
+          ) || false;
+        return debitMatch || creditMatch;
+      });
+    }
+
     // Amount range filter
     if (minAmount !== "" || maxAmount !== "") {
       filtered = filtered.filter((book) => {
@@ -206,13 +225,14 @@ const DailyBookTable: React.FC<DailyBookTableProps> = ({
     setFilteredData(filtered);
     setCurrentPage(1); // Reset to first page when filters change
   }, [
-    dailyBooks,
+    JSON.stringify(dailyBooks),
     searchTerm,
     startDate,
     endDate,
     selectedAccountGroup,
     selectedTotalAccount,
     selectedFixedAccount,
+    selectedDetailedAccount,
     minAmount,
     maxAmount,
   ]);
@@ -533,29 +553,33 @@ const DailyBookTable: React.FC<DailyBookTableProps> = ({
   // Export to Excel
   const exportToExcel = () => {
     const allEntries = filteredData.flatMap((book) => {
-      const debitEntries = (book.debitEntries || []).map((entry: DailyBookEntry) => ({
-        "شماره سند": book.documentNumber,
-        تاریخ: formatDate(book.date),
-        "شرح سند": book.description,
-        نوع: "بدهکار",
-        "گروه حساب": getAccountName(entry.accountGroup, "group"),
-        "حساب کل": getAccountName(entry.totalAccount, "total"),
-        "حساب معین": getAccountName(entry.fixedAccounts, "fixed"),
-        مبلغ: entry.amount,
-        شرح: entry.description,
-      }));
+      const debitEntries = (book.debitEntries || []).map(
+        (entry: DailyBookEntry) => ({
+          "شماره سند": book.documentNumber,
+          تاریخ: formatDate(book.date),
+          "شرح سند": book.description,
+          نوع: "بدهکار",
+          "گروه حساب": getAccountName(entry.accountGroup, "group"),
+          "حساب کل": getAccountName(entry.totalAccount, "total"),
+          "حساب معین": getAccountName(entry.fixedAccounts, "fixed"),
+          مبلغ: entry.amount,
+          شرح: entry.description,
+        })
+      );
 
-      const creditEntries = (book.creditEntries || []).map((entry: DailyBookEntry) => ({
-        "شماره سند": book.documentNumber,
-        تاریخ: formatDate(book.date),
-        "شرح سند": book.description,
-        نوع: "بستانکار",
-        "گروه حساب": getAccountName(entry.accountGroup, "group"),
-        "حساب کل": getAccountName(entry.totalAccount, "total"),
-        "حساب معین": getAccountName(entry.fixedAccounts, "fixed"),
-        مبلغ: entry.amount,
-        شرح: entry.description,
-      }));
+      const creditEntries = (book.creditEntries || []).map(
+        (entry: DailyBookEntry) => ({
+          "شماره سند": book.documentNumber,
+          تاریخ: formatDate(book.date),
+          "شرح سند": book.description,
+          نوع: "بستانکار",
+          "گروه حساب": getAccountName(entry.accountGroup, "group"),
+          "حساب کل": getAccountName(entry.totalAccount, "total"),
+          "حساب معین": getAccountName(entry.fixedAccounts, "fixed"),
+          مبلغ: entry.amount,
+          شرح: entry.description,
+        })
+      );
 
       return [...debitEntries, ...creditEntries];
     });
@@ -567,7 +591,10 @@ const DailyBookTable: React.FC<DailyBookTableProps> = ({
   };
 
   // Helper function to get account names
-  const getAccountName = (id: string, type: "group" | "total" | "fixed") => {
+  const getAccountName = (
+    id: string,
+    type: "group" | "total" | "fixed" | "detailed"
+  ) => {
     if (!id) return "";
 
     switch (type) {
@@ -583,6 +610,11 @@ const DailyBookTable: React.FC<DailyBookTableProps> = ({
       case "fixed":
         return (
           fixedAccounts.find((account) => account._id.toString() === id)
+            ?.name || ""
+        );
+      case "detailed":
+        return (
+          detailedAccounts.find((account) => account._id.toString() === id)
             ?.name || ""
         );
       default:
@@ -736,7 +768,7 @@ const DailyBookTable: React.FC<DailyBookTableProps> = ({
 
       {/* Filters */}
       <div className="mb-6 bg-gray-50 p-4 rounded-lg">
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-9 gap-4">
           {/* Search */}
           <div className="relative">
             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
@@ -822,6 +854,66 @@ const DailyBookTable: React.FC<DailyBookTableProps> = ({
             </select>
           </div>
 
+          {/* Total Account Filter */}
+          <div>
+            <select
+              value={selectedTotalAccount}
+              onChange={(e) => setSelectedTotalAccount(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md placeholder:text-gray-400 text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">همه حسابهای کل</option>
+              {totalAccounts &&
+                totalAccounts.map((account) => (
+                  <option
+                    key={account._id.toString()}
+                    value={account._id.toString()}
+                  >
+                    {account.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          {/* Fixed Account Filter */}
+          <div>
+            <select
+              value={selectedFixedAccount}
+              onChange={(e) => setSelectedFixedAccount(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md placeholder:text-gray-400 text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">همه حسابهای معین</option>
+              {fixedAccounts &&
+                fixedAccounts.map((account) => (
+                  <option
+                    key={account._id.toString()}
+                    value={account._id.toString()}
+                  >
+                    {account.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          {/* Detailed Account Filter */}
+          <div>
+            <select
+              value={selectedDetailedAccount}
+              onChange={(e) => setSelectedDetailedAccount(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md placeholder:text-gray-400 text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">همه حسابهای تفصیلی</option>
+              {detailedAccounts &&
+                detailedAccounts.map((account) => (
+                  <option
+                    key={account._id.toString()}
+                    value={account._id.toString()}
+                  >
+                    {account.name}
+                  </option>
+                ))}
+            </select>
+          </div>
+
           {/* Amount Range Filter */}
           <div className="flex space-x-2 space-x-reverse">
             <input
@@ -873,6 +965,7 @@ const DailyBookTable: React.FC<DailyBookTableProps> = ({
                 setSelectedAccountGroup("");
                 setSelectedTotalAccount("");
                 setSelectedFixedAccount("");
+                setSelectedDetailedAccount("");
                 setMinAmount("");
                 setMaxAmount("");
               }}
@@ -1068,10 +1161,22 @@ const DailyBookTable: React.FC<DailyBookTableProps> = ({
                                 {(entry.detailed1 || entry.detailed2) && (
                                   <div className="text-gray-500 mr-12 text-xs">
                                     {entry.detailed1 && (
-                                      <div>تفصیلی 1: {entry.detailed1}</div>
+                                      <div>
+                                        تفصیلی 1:{" "}
+                                        {getAccountName(
+                                          entry.detailed1,
+                                          "detailed"
+                                        )}
+                                      </div>
                                     )}
                                     {entry.detailed2 && (
-                                      <div>تفصیلی 2: {entry.detailed2}</div>
+                                      <div>
+                                        تفصیلی 2:{" "}
+                                        {getAccountName(
+                                          entry.detailed2,
+                                          "detailed"
+                                        )}
+                                      </div>
                                     )}
                                   </div>
                                 )}
@@ -1199,7 +1304,7 @@ const DailyBookTable: React.FC<DailyBookTableProps> = ({
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-bold mb-4 text-center">تأیید حذف</h3>
             <p className="text-center mb-6">

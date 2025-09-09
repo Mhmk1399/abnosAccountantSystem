@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useDailyBook } from "@/contexts/DailyBookContext";
+import { useFiscalYear } from "@/contexts/FiscalYearContext";
 import toast from "react-hot-toast";
 import { DateObject } from "react-multi-date-picker";
 import DatePicker from "react-multi-date-picker";
@@ -11,6 +12,7 @@ import { FaRegCalendarAlt } from "react-icons/fa";
 import { generateNextDocumentNumber } from "@/services/documentNumber";
 import { IFixedAccount, ITotalAccount } from "@/types/models";
 import { TypeOfDailyBookType, DailyBook } from "@/types/finalTypes";
+import FormattedNumberInput from "@/utils/FormattedNumberInput";
 
 interface DailyBookFormProps {
   onSuccess?: () => void;
@@ -29,10 +31,11 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
     totalAccounts,
     fixedAccounts,
     detailedAccounts,
-    fiscalYears,
     loading,
     createDailyBook,
   } = useDailyBook();
+
+  const { selectedFiscalYear, resetFiscalYear } = useFiscalYear();
 
   // Fetch typeOfDailyBook data and generate document number
   useEffect(() => {
@@ -45,12 +48,12 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
         console.error("Error fetching types:", error);
       }
     };
-    
+
     const generateDocNumber = async () => {
       const docNumber = await generateNextDocumentNumber();
       setDocumentNumber(docNumber);
     };
-    
+
     fetchTypes();
     generateDocNumber();
   }, []);
@@ -66,10 +69,13 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
   const [documentNumber, setDocumentNumber] = useState("");
   const [date, setDate] = useState<Date | null>(new Date());
   const [description, setDescription] = useState("");
-  const [selectedFiscalYear, setSelectedFiscalYear] = useState("");
   const [selectedTypeOfDailyBook, setSelectedTypeOfDailyBook] = useState("");
-  const [typeOfDailyBooks, setTypeOfDailyBooks] = useState<TypeOfDailyBookType[]>([]);
-  const [selectedType, setSelectedType] = useState<TypeOfDailyBookType | null>(null);
+  const [typeOfDailyBooks, setTypeOfDailyBooks] = useState<
+    TypeOfDailyBookType[]
+  >([]);
+  const [selectedType, setSelectedType] = useState<TypeOfDailyBookType | null>(
+    null
+  );
 
   // Debit entry state
   const [debitAccountGroup, setDebitAccountGroup] = useState("");
@@ -260,16 +266,20 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
 
   // Delete debit row
   const deleteDebitRow = (id: number) => {
-    setDebitEntries(debitEntries.filter(entry => entry.id !== id));
+    setDebitEntries(debitEntries.filter((entry) => entry.id !== id));
   };
 
   // Delete credit row
   const deleteCreditRow = (id: number) => {
-    setCreditEntries(creditEntries.filter(entry => entry.id !== id));
+    setCreditEntries(creditEntries.filter((entry) => entry.id !== id));
   };
 
   // Handle dynamic debit entry changes
-  const handleDebitEntryChange = (id: number, field: string, value: string | number) => {
+  const handleDebitEntryChange = (
+    id: number,
+    field: string,
+    value: string | number
+  ) => {
     setDebitEntries((prev) =>
       prev.map((entry) => {
         if (entry.id === id) {
@@ -301,7 +311,11 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
   };
 
   // Handle dynamic credit entry changes
-  const handleCreditEntryChange = (id: number, field: string, value: string | number) => {
+  const handleCreditEntryChange = (
+    id: number,
+    field: string,
+    value: string | number
+  ) => {
     setCreditEntries((prev) =>
       prev.map((entry) => {
         if (entry.id === id) {
@@ -353,7 +367,6 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
       !creditAmount ||
       !creditDescription ||
       !selectedType
-      
     ) {
       toast.error("لطفاً تمام فیلدها را پر کنید");
       return;
@@ -362,14 +375,10 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
     // Calculate total debit and credit amounts
     const totalDebit =
       debitAmount +
-      debitEntries
-        .reduce((sum, entry) => sum + (entry.amount || 0), 0);
+      debitEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0);
     const totalCredit =
       creditAmount +
-      creditEntries
-        .reduce((sum, entry) => sum + (entry.amount || 0), 0);
-
-
+      creditEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0);
 
     // Collect debit entries
     const debitEntriesData = [
@@ -382,7 +391,7 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
         detailed2: debitDetailed2 || undefined,
         amount: debitAmount,
         description: debitDescription,
-        fiscalYear: selectedFiscalYear,
+        fiscalYear: selectedFiscalYear?._id,
       },
       // Additional debit entries - include ALL entries, not just slice(1)
       ...debitEntries
@@ -402,10 +411,10 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
           detailed2: entry.detailed2 || undefined,
           amount: entry.amount,
           description: entry.description,
-          fiscalYear: selectedFiscalYear,
+          fiscalYear: selectedFiscalYear?._id,
         })),
     ];
-    
+
     // Collect credit entries
     const creditEntriesData = [
       // Main credit entry
@@ -417,7 +426,7 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
         detailed2: creditDetailed2 || undefined,
         amount: creditAmount,
         description: creditDescription,
-        fiscalYear: selectedFiscalYear,
+        fiscalYear: selectedFiscalYear?._id,
       },
       // Additional credit entries - include ALL entries, not just slice(1)
       ...creditEntries
@@ -437,17 +446,17 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
           detailed2: entry.detailed2 || undefined,
           amount: entry.amount,
           description: entry.description,
-          fiscalYear: selectedFiscalYear,
+          fiscalYear: selectedFiscalYear?._id,
         })),
     ];
-    
-    console.log('📊 Form Submission Data:');
-    console.log('Total Debit Amount:', totalDebit);
-    console.log('Total Credit Amount:', totalCredit);
-    console.log('Debit Entries:', debitEntriesData);
-    console.log('Credit Entries:', creditEntriesData);
-    console.log('Debit Entries Count:', debitEntriesData.length);
-    console.log('Credit Entries Count:', creditEntriesData.length);
+
+    console.log("📊 Form Submission Data:");
+    console.log("Total Debit Amount:", totalDebit);
+    console.log("Total Credit Amount:", totalCredit);
+    console.log("Debit Entries:", debitEntriesData);
+    console.log("Credit Entries:", creditEntriesData);
+    console.log("Debit Entries Count:", debitEntriesData.length);
+    console.log("Credit Entries Count:", creditEntriesData.length);
 
     // Create daily book entry
     const dailyBookData = {
@@ -458,7 +467,6 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
       debitEntries: debitEntriesData,
       creditEntries: creditEntriesData,
       entries: [...debitEntriesData, ...creditEntriesData],
-      createdBy: "system", // Default value since userId is commented out
       status: "draft",
     };
 
@@ -475,7 +483,6 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
         setDocumentNumber(newDocNumber);
         setDate(new Date());
         setDescription("");
-        setSelectedFiscalYear("");
         setSelectedTypeOfDailyBook("");
         setSelectedType(null);
         setDebitAccountGroup("");
@@ -495,35 +502,39 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
         setShowDebitDetailed(false);
         setShowCreditDetailed(false);
         // Reset dynamic entries to initial state
-        setDebitEntries([{
-          id: 1,
-          accountGroup: "",
-          totalAccount: "",
-          fixedAccount: "",
-          detailed1: "",
-          detailed2: "",
-          amount: 0,
-          description: "",
-          totalAccountOptions: [],
-          fixedAccountOptions: [],
-        }]);
-        setCreditEntries([{
-          id: 1,
-          accountGroup: "",
-          totalAccount: "",
-          fixedAccount: "",
-          detailed1: "",
-          detailed2: "",
-          amount: 0,
-          description: "",
-          totalAccountOptions: [],
-          fixedAccountOptions: [],
-        }]);
+        setDebitEntries([
+          {
+            id: 1,
+            accountGroup: "",
+            totalAccount: "",
+            fixedAccount: "",
+            detailed1: "",
+            detailed2: "",
+            amount: 0,
+            description: "",
+            totalAccountOptions: [],
+            fixedAccountOptions: [],
+          },
+        ]);
+        setCreditEntries([
+          {
+            id: 1,
+            accountGroup: "",
+            totalAccount: "",
+            fixedAccount: "",
+            detailed1: "",
+            detailed2: "",
+            amount: 0,
+            description: "",
+            totalAccountOptions: [],
+            fixedAccountOptions: [],
+          },
+        ]);
 
         if (onSuccess) onSuccess();
       })
       .catch((error) => {
-        console.error("Error details:", error);
+        console.log("Error details:", error);
         toast.error(`خطا در ثبت سند: ${error.message}`);
       });
   };
@@ -550,7 +561,7 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
           <select
             value={selectedTypeOfDailyBook}
             onChange={(e) => handleTypeChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md placeholder:text-gray-400 text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-[7px] border border-gray-300 rounded-md placeholder:text-gray-400 text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
             required
           >
             <option value="">انتخاب کنید</option>
@@ -569,7 +580,7 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
             type="text"
             value={documentNumber}
             onChange={(e) => setDocumentNumber(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none placeholder:text-gray-400 text-black focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md placeholder:text-gray-400 text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="شماره سند را وارد کنید"
             required
           />
@@ -595,7 +606,7 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
               calendar={persian}
               locale={persian_fa}
               format="YYYY/MM/DD"
-              inputClass="w-full bg-transparent p-2 text-black focus:outline-none placeholder:text-gray-400 text-black"
+              inputClass="w-full bg-transparent   text-black focus:outline-none placeholder:text-gray-400 text-black"
               calendarPosition="bottom-right"
             />
           </div>
@@ -619,30 +630,30 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
           <label className="block text-sm font-medium text-gray-700 mb-1">
             سال مالی
           </label>
-          <select
-            value={selectedFiscalYear}
-            onChange={(e) => setSelectedFiscalYear(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md placeholder:text-gray-400 text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
-            required
-          >
-            <option value="">انتخاب کنید</option>
-            {fiscalYears && fiscalYears.length > 0 ? (
-              fiscalYears.map((year) => (
-                <option key={year._id} value={year._id.toString()}>
-                  {year.name}
-                </option>
-              ))
-            ) : (
-              <option value="" disabled>
-                سال مالی موجود نیست
-              </option>
-            )}
-          </select>
+          <div className="flex items-center gap-2">
+            <div className="flex-1  px-3 py-2 border border-gray-200 rounded-md bg-gray-50 text-gray-700">
+              {selectedFiscalYear ? selectedFiscalYear.name : "انتخاب نشده"}
+            </div>
+            <button
+              type="button"
+              onClick={resetFiscalYear}
+              className="px-3 py-3 text-xs bg-yellow-500 text-black rounded-md hover:bg-yellow-600 hover:text-white transition-colors"
+            >
+              حذف / تغییر
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            برای تغییر سال مالی روی دکمه تغییر کلیک کنید
+          </p>
         </div>
       </div>
 
       {/* Table Headers */}
-      <div className={`grid gap-2 mb-2 font-bold text-sm text-gray-600 border-b pb-2 ${showDebitDetailed ? 'grid-cols-15' : 'grid-cols-13'}`}>
+      <div
+        className={`grid gap-2 mb-2 font-bold text-sm text-gray-600 border-b pb-2 ${
+          showDebitDetailed ? "grid-cols-15" : "grid-cols-13"
+        }`}
+      >
         <div className="col-span-1"></div>
         <div className="col-span-2">گروه حساب</div>
         <div className="col-span-2">حساب کل</div>
@@ -669,7 +680,11 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
 
       <form onSubmit={handleSubmit}>
         {/* Debit Row */}
-        <div className={`grid gap-2 mb-4 items-center ${showDebitDetailed ? 'grid-cols-15' : 'grid-cols-13'}`}>
+        <div
+          className={`grid gap-2 mb-4 items-center ${
+            showDebitDetailed ? "grid-cols-15" : "grid-cols-13"
+          }`}
+        >
           <div className="col-span-1 h-full flex flex-row-reverse items-center justify-center gap-1">
             <div className="bg-red-100 text-red-800 h-full flex items-center justify-center px-2 py-4 rounded-r-md border-r-4 border-red-500 w-full">
               <span className="transform -rotate-90 whitespace-nowrap text-sm font-bold">
@@ -773,7 +788,10 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
                 >
                   <option value="">انتخاب</option>
                   {detailedAccounts?.map((account) => (
-                    <option key={account._id.toString()} value={account._id.toString()}>
+                    <option
+                      key={account._id.toString()}
+                      value={account._id.toString()}
+                    >
                       {account.name}
                     </option>
                   ))}
@@ -787,7 +805,10 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
                 >
                   <option value="">انتخاب</option>
                   {detailedAccounts?.map((account) => (
-                    <option key={account._id.toString()} value={account._id.toString()}>
+                    <option
+                      key={account._id.toString()}
+                      value={account._id.toString()}
+                    >
                       {account.name}
                     </option>
                   ))}
@@ -797,17 +818,11 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
           )}
 
           <div className="col-span-2">
-            <input
-              type="number"
+            <FormattedNumberInput
               value={debitAmount}
-              onChange={(e) => {
-                const amount = parseFloat(e.target.value);
-                setDebitAmount(amount);
-              }}
+              onChange={(amount) => setDebitAmount(amount)}
               className="w-full px-3 py-2 border border-gray-300 placeholder:text-gray-400 text-black rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="مبلغ"
-              min="0"
-              required
             />
           </div>
 
@@ -848,7 +863,9 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
         {debitEntries.slice(1).map((entry) => (
           <div
             key={`debit-${entry.id}`}
-            className={`grid gap-2 mb-4 items-center ${showDebitDetailed ? 'grid-cols-15' : 'grid-cols-13'}`}
+            className={`grid gap-2 mb-4 items-center ${
+              showDebitDetailed ? "grid-cols-15" : "grid-cols-13"
+            }`}
           >
             <div className="col-span-1"></div>
             <div className="col-span-2">
@@ -865,7 +882,10 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
               >
                 <option value="">انتخاب کنید</option>
                 {accountGroups?.map((group) => (
-                  <option key={group._id.toString()} value={group._id.toString()}>
+                  <option
+                    key={group._id.toString()}
+                    value={group._id.toString()}
+                  >
                     {group.name}
                   </option>
                 ))}
@@ -886,7 +906,10 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
               >
                 <option value="">انتخاب کنید</option>
                 {entry.totalAccountOptions?.map((account) => (
-                  <option key={account._id.toString()} value={account._id.toString()}>
+                  <option
+                    key={account._id.toString()}
+                    value={account._id.toString()}
+                  >
                     {account.name}
                   </option>
                 ))}
@@ -907,7 +930,10 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
               >
                 <option value="">انتخاب کنید</option>
                 {entry.fixedAccountOptions?.map((account) => (
-                  <option key={account._id.toString()} value={account._id.toString()}>
+                  <option
+                    key={account._id.toString()}
+                    value={account._id.toString()}
+                  >
                     {account.name}
                   </option>
                 ))}
@@ -929,7 +955,10 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
                   >
                     <option value="">انتخاب</option>
                     {detailedAccounts?.map((account) => (
-                      <option key={account._id.toString()} value={account._id.toString()}>
+                      <option
+                        key={account._id.toString()}
+                        value={account._id.toString()}
+                      >
                         {account.name}
                       </option>
                     ))}
@@ -949,7 +978,10 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
                   >
                     <option value="">انتخاب</option>
                     {detailedAccounts?.map((account) => (
-                      <option key={account._id.toString()} value={account._id.toString()}>
+                      <option
+                        key={account._id.toString()}
+                        value={account._id.toString()}
+                      >
                         {account.name}
                       </option>
                     ))}
@@ -958,19 +990,13 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
               </>
             )}
             <div className="col-span-2">
-              <input
-                type="number"
+              <FormattedNumberInput
                 value={entry.amount}
-                onChange={(e) =>
-                  handleDebitEntryChange(
-                    entry.id,
-                    "amount",
-                    parseFloat(e.target.value) || 0
-                  )
+                onChange={(amount) =>
+                  handleDebitEntryChange(entry.id, "amount", amount)
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md placeholder:text-gray-400 text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="مبلغ"
-                min="0"
               />
             </div>
             <div className="col-span-3">
@@ -1026,7 +1052,11 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
         ))}
 
         {/* Credit Header */}
-        <div className={`grid gap-2 mb-2 font-bold text-sm text-gray-600 border-b pb-2 ${showCreditDetailed ? 'grid-cols-15' : 'grid-cols-13'}`}>
+        <div
+          className={`grid gap-2 mb-2 font-bold text-sm text-gray-600 border-b pb-2 ${
+            showCreditDetailed ? "grid-cols-15" : "grid-cols-13"
+          }`}
+        >
           <div className="col-span-1"></div>
           <div className="col-span-2">گروه حساب</div>
           <div className="col-span-2">حساب کل</div>
@@ -1051,7 +1081,11 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
         </div>
 
         {/* Credit Row */}
-        <div className={`grid gap-2 mb-6 items-center ${showCreditDetailed ? 'grid-cols-15' : 'grid-cols-13'}`}>
+        <div
+          className={`grid gap-2 mb-6 items-center ${
+            showCreditDetailed ? "grid-cols-15" : "grid-cols-13"
+          }`}
+        >
           <div className="col-span-1 h-full flex flex-row-reverse items-center justify-center gap-1">
             <div className="bg-green-100 text-green-800 h-full flex items-center justify-center px-2 py-4 rounded-r-md border-r-4 border-green-500 w-full">
               <span className="transform -rotate-90 whitespace-nowrap text-sm font-bold">
@@ -1155,7 +1189,10 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
                 >
                   <option value="">انتخاب</option>
                   {detailedAccounts?.map((account) => (
-                    <option key={account._id.toString()} value={account._id.toString()}>
+                    <option
+                      key={account._id.toString()}
+                      value={account._id.toString()}
+                    >
                       {account.name}
                     </option>
                   ))}
@@ -1169,7 +1206,10 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
                 >
                   <option value="">انتخاب</option>
                   {detailedAccounts?.map((account) => (
-                    <option key={account._id.toString()} value={account._id.toString()}>
+                    <option
+                      key={account._id.toString()}
+                      value={account._id.toString()}
+                    >
                       {account.name}
                     </option>
                   ))}
@@ -1179,17 +1219,11 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
           )}
 
           <div className="col-span-2">
-            <input
-              type="number"
+            <FormattedNumberInput
               value={creditAmount}
-              onChange={(e) => {
-                const amount = parseFloat(e.target.value);
-                setCreditAmount(amount);
-              }}
+              onChange={(amount) => setCreditAmount(amount)}
               className="w-full px-3 py-2 border border-gray-300 placeholder:text-gray-400 text-black rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="مبلغ"
-              min="0"
-              required
             />
           </div>
 
@@ -1230,7 +1264,9 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
         {creditEntries.slice(1).map((entry) => (
           <div
             key={`credit-${entry.id}`}
-            className={`grid gap-2 mb-6 items-center ${showCreditDetailed ? 'grid-cols-15' : 'grid-cols-13'}`}
+            className={`grid gap-2 mb-6 items-center ${
+              showCreditDetailed ? "grid-cols-15" : "grid-cols-13"
+            }`}
           >
             <div className="col-span-1"></div>
             <div className="col-span-2">
@@ -1247,7 +1283,10 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
               >
                 <option value="">انتخاب کنید</option>
                 {accountGroups?.map((group) => (
-                  <option key={group._id.toString()} value={group._id.toString()}>
+                  <option
+                    key={group._id.toString()}
+                    value={group._id.toString()}
+                  >
                     {group.name}
                   </option>
                 ))}
@@ -1268,7 +1307,10 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
               >
                 <option value="">انتخاب کنید</option>
                 {entry.totalAccountOptions?.map((account) => (
-                  <option key={account._id.toString()} value={account._id.toString()}>
+                  <option
+                    key={account._id.toString()}
+                    value={account._id.toString()}
+                  >
                     {account.name}
                   </option>
                 ))}
@@ -1289,7 +1331,10 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
               >
                 <option value="">انتخاب کنید</option>
                 {entry.fixedAccountOptions?.map((account) => (
-                  <option key={account._id.toString()} value={account._id.toString()}>
+                  <option
+                    key={account._id.toString()}
+                    value={account._id.toString()}
+                  >
                     {account.name}
                   </option>
                 ))}
@@ -1311,7 +1356,10 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
                   >
                     <option value="">انتخاب</option>
                     {detailedAccounts?.map((account) => (
-                      <option key={account._id.toString()} value={account._id.toString()}>
+                      <option
+                        key={account._id.toString()}
+                        value={account._id.toString()}
+                      >
                         {account.name}
                       </option>
                     ))}
@@ -1331,7 +1379,10 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
                   >
                     <option value="">انتخاب</option>
                     {detailedAccounts?.map((account) => (
-                      <option key={account._id.toString()} value={account._id.toString()}>
+                      <option
+                        key={account._id.toString()}
+                        value={account._id.toString()}
+                      >
                         {account.name}
                       </option>
                     ))}
@@ -1340,19 +1391,13 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
               </>
             )}
             <div className="col-span-2">
-              <input
-                type="number"
+              <FormattedNumberInput
                 value={entry.amount}
-                onChange={(e) =>
-                  handleCreditEntryChange(
-                    entry.id,
-                    "amount",
-                    parseFloat(e.target.value) || 0
-                  )
+                onChange={(amount) =>
+                  handleCreditEntryChange(entry.id, "amount", amount)
                 }
                 className="w-full px-3 py-2 border border-gray-300 rounded-md placeholder:text-gray-400 text-black focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="مبلغ"
-                min="0"
               />
             </div>
             <div className="col-span-3">
@@ -1413,21 +1458,101 @@ const DailyBookForm: React.FC<DailyBookFormProps> = ({
             <div className="bg-red-100 p-3 rounded">
               <div className="text-sm text-gray-600">مجموع بدهکار</div>
               <div className="text-lg font-bold text-red-700">
-                {(debitAmount + debitEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0)).toLocaleString()}
+                {(
+                  debitAmount +
+                  debitEntries.reduce(
+                    (sum, entry) => sum + (entry.amount || 0),
+                    0
+                  )
+                ).toLocaleString()}
               </div>
             </div>
             <div className="bg-green-100 p-3 rounded">
               <div className="text-sm text-gray-600">مجموع بستانکار</div>
               <div className="text-lg font-bold text-green-700">
-                {(creditAmount + creditEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0)).toLocaleString()}
+                {(
+                  creditAmount +
+                  creditEntries.reduce(
+                    (sum, entry) => sum + (entry.amount || 0),
+                    0
+                  )
+                ).toLocaleString()}
               </div>
             </div>
-            <div className={`p-3 rounded ${Math.abs((debitAmount + debitEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0)) - (creditAmount + creditEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0))) === 0 ? 'bg-blue-100' : 'bg-yellow-100'}`}>
+            <div
+              className={`p-3 rounded ${
+                Math.abs(
+                  debitAmount +
+                    debitEntries.reduce(
+                      (sum, entry) => sum + (entry.amount || 0),
+                      0
+                    ) -
+                    (creditAmount +
+                      creditEntries.reduce(
+                        (sum, entry) => sum + (entry.amount || 0),
+                        0
+                      ))
+                ) === 0
+                  ? "bg-blue-100"
+                  : "bg-yellow-100"
+              }`}
+            >
               <div className="text-sm text-gray-600">مانده</div>
-              <div className={`text-lg font-bold ${Math.abs((debitAmount + debitEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0)) - (creditAmount + creditEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0))) === 0 ? 'text-blue-700' : 'text-yellow-700'}`}>
-                {Math.abs((debitAmount + debitEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0)) - (creditAmount + creditEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0))).toLocaleString()}
-                {Math.abs((debitAmount + debitEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0)) - (creditAmount + creditEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0))) === 0 ? ' (متعادل)' : 
-                  ((debitAmount + debitEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0)) > (creditAmount + creditEntries.reduce((sum, entry) => sum + (entry.amount || 0), 0)) ? ' (بدهکار)' : ' (بستانکار)')}
+              <div
+                className={`text-lg font-bold ${
+                  Math.abs(
+                    debitAmount +
+                      debitEntries.reduce(
+                        (sum, entry) => sum + (entry.amount || 0),
+                        0
+                      ) -
+                      (creditAmount +
+                        creditEntries.reduce(
+                          (sum, entry) => sum + (entry.amount || 0),
+                          0
+                        ))
+                  ) === 0
+                    ? "text-blue-700"
+                    : "text-yellow-700"
+                }`}
+              >
+                {Math.abs(
+                  debitAmount +
+                    debitEntries.reduce(
+                      (sum, entry) => sum + (entry.amount || 0),
+                      0
+                    ) -
+                    (creditAmount +
+                      creditEntries.reduce(
+                        (sum, entry) => sum + (entry.amount || 0),
+                        0
+                      ))
+                ).toLocaleString()}
+                {Math.abs(
+                  debitAmount +
+                    debitEntries.reduce(
+                      (sum, entry) => sum + (entry.amount || 0),
+                      0
+                    ) -
+                    (creditAmount +
+                      creditEntries.reduce(
+                        (sum, entry) => sum + (entry.amount || 0),
+                        0
+                      ))
+                ) === 0
+                  ? " (متعادل)"
+                  : debitAmount +
+                      debitEntries.reduce(
+                        (sum, entry) => sum + (entry.amount || 0),
+                        0
+                      ) >
+                    creditAmount +
+                      creditEntries.reduce(
+                        (sum, entry) => sum + (entry.amount || 0),
+                        0
+                      )
+                  ? " (بدهکار)"
+                  : " (بستانکار)"}
               </div>
             </div>
           </div>

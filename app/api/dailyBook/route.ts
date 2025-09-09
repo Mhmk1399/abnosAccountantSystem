@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import DailyBook from "@/models/dailyBook";
 import connect from "@/lib/data";
 import AccountBalance from "@/models/accounts/accountsBalance";
+import { createDailyBookEntry, createDailyBookFromTypeOfDailyBook } from "@/services/dailyBookCreatorService";
 // GET: Retrieve all daily books
 export const GET = async (req: NextRequest) => {
   await connect();
@@ -43,8 +44,36 @@ export const POST = async (req: NextRequest) => {
   try {
     const body = await req.json();
 
-    // Step 1: Create and save the daily book
-    const dailyBook = await DailyBook.create(body);
+    let dailyBook;
+    
+    // If using daily book creator service
+    if (body.useCreatorService) {
+      if (body.typeOfDailyBookId) {
+        dailyBook = await createDailyBookFromTypeOfDailyBook({
+          typeOfDailyBookId: body.typeOfDailyBookId,
+          amount: body.amount,
+          description: body.description,
+          debitDetailed: body.debitDetailed,
+          creditDetailed: body.creditDetailed,
+          documentNumber: body.documentNumber,
+          date: body.date
+        });
+      } else if (body.debitEntry && body.creditEntry) {
+        dailyBook = await createDailyBookEntry({
+          debitEntry: body.debitEntry,
+          creditEntry: body.creditEntry,
+          description: body.description,
+          typeOfDailyBook: body.typeOfDailyBook,
+          documentNumber: body.documentNumber,
+          date: body.date
+        });
+      } else {
+        throw new Error("Invalid data for creator service");
+      }
+    } else {
+      // Step 1: Create and save the daily book using traditional method
+      dailyBook = await DailyBook.create(body);
+    }
 
     // Step 2: If posted (not draft), update account balances
     if (dailyBook.status === "draft") {

@@ -51,7 +51,7 @@ const Leave: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(1404);
   const [nameFilter, setNameFilter] = useState("");
-  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [monthRange, setMonthRange] = useState<[number, number]>([0, 11]);
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const tableRef = useRef<HTMLTableElement>(null);
   const { generateTablePng, generateRowPng, generateSelectedRowsPng } =
@@ -63,7 +63,7 @@ const Leave: React.FC = () => {
 
   useEffect(() => {
     filterData();
-  }, [leaveData, nameFilter, selectedMonth]);
+  }, [leaveData, nameFilter, monthRange]);
 
   const filterData = () => {
     const filtered = leaveData.filter(
@@ -89,34 +89,30 @@ const Leave: React.FC = () => {
   const convertStaffToRowData = (staff: LeaveData): RowData => {
     const rowData: RowData = { name: staff.name, position: staff.position };
 
-    if (selectedMonth !== null) {
-      rowData[`leave_${monthNames[selectedMonth]}`] =
-        staff.leavePerMonth[selectedMonth].toFixed(1);
-      rowData[`used_${monthNames[selectedMonth]}`] =
-        staff.usedLeavePerMonth[selectedMonth];
-      rowData[`remaining_${monthNames[selectedMonth]}`] =
-        staff.remainingLeavePerMonth[selectedMonth].toFixed(1);
-    } else {
-      monthNames.forEach((month, index) => {
-        rowData[month] = staff.remainingLeavePerMonth[index].toFixed(1);
-      });
-      rowData.totalUsed = staff.totalUsedLeave;
-      rowData.totalRemaining = Math.round(staff.totalRemainingLeave);
+    const rangeMonths: number[] = [];
+    for (let i = monthRange[0]; i <= monthRange[1]; i++) {
+      rangeMonths.push(i);
     }
+
+    rangeMonths.forEach((monthIndex) => {
+      rowData[monthNames[monthIndex]] = staff.remainingLeavePerMonth[monthIndex].toFixed(1);
+    });
+
+    const rangeUsed = rangeMonths.reduce((sum, i) => sum + staff.usedLeavePerMonth[i], 0);
+    const rangeRemaining = rangeMonths.reduce((sum, i) => sum + staff.remainingLeavePerMonth[i], 0);
+    
+    rowData.totalUsed = rangeUsed;
+    rowData.totalRemaining = Math.round(rangeRemaining);
 
     return rowData;
   };
 
   const getHeaders = () => {
-    return selectedMonth !== null
-      ? [
-          "نام",
-          "سمت",
-          `مرخصی ${monthNames[selectedMonth]}`,
-          `استفاده شده ${monthNames[selectedMonth]}`,
-          `باقیمانده ${monthNames[selectedMonth]}`,
-        ]
-      : ["نام", "سمت", ...monthNames, "کل استفاده", "کل باقیمانده"];
+    const rangeMonths: string[] = [];
+    for (let i = monthRange[0]; i <= monthRange[1]; i++) {
+      rangeMonths.push(monthNames[i]);
+    }
+    return ["نام", "سمت", ...rangeMonths, "کل استفاده", "کل باقیمانده"];
   };
 
   const handleDownloadFullTable = () => {
@@ -125,41 +121,31 @@ const Leave: React.FC = () => {
     // Add totals row
     const totalsRow: RowData = { name: "جمع کل:", position: "" };
 
-    if (selectedMonth !== null) {
-      totalsRow[`leave_${monthNames[selectedMonth]}`] = filteredData
-        .reduce((sum, staff) => sum + staff.leavePerMonth[selectedMonth], 0)
-        .toFixed(1);
-      totalsRow[`used_${monthNames[selectedMonth]}`] = filteredData.reduce(
-        (sum, staff) => sum + staff.usedLeavePerMonth[selectedMonth],
-        0
-      );
-      totalsRow[`remaining_${monthNames[selectedMonth]}`] = filteredData
-        .reduce(
-          (sum, staff) => sum + staff.remainingLeavePerMonth[selectedMonth],
-          0
-        )
-        .toFixed(1);
-    } else {
-      monthNames.forEach((month, index) => {
-        totalsRow[month] = filteredData
-          .reduce((sum, staff) => sum + staff.remainingLeavePerMonth[index], 0)
-          .toFixed(1);
-      });
-      totalsRow.totalUsed = filteredData.reduce(
-        (sum, staff) => sum + staff.totalUsedLeave,
-        0
-      );
-      totalsRow.totalRemaining = Math.round(
-        filteredData.reduce((sum, staff) => sum + staff.totalRemainingLeave, 0)
-      );
+    const rangeMonths: number[] = [];
+    for (let i = monthRange[0]; i <= monthRange[1]; i++) {
+      rangeMonths.push(i);
     }
+
+    rangeMonths.forEach((monthIndex) => {
+      totalsRow[monthNames[monthIndex]] = filteredData
+        .reduce((sum, staff) => sum + staff.remainingLeavePerMonth[monthIndex], 0)
+        .toFixed(1);
+    });
+    
+    const totalRangeUsed = filteredData.reduce((sum, staff) => 
+      sum + rangeMonths.reduce((monthSum, i) => monthSum + staff.usedLeavePerMonth[i], 0), 0
+    );
+    const totalRangeRemaining = filteredData.reduce((sum, staff) => 
+      sum + rangeMonths.reduce((monthSum, i) => monthSum + staff.remainingLeavePerMonth[i], 0), 0
+    );
+    
+    totalsRow.totalUsed = totalRangeUsed;
+    totalsRow.totalRemaining = Math.round(totalRangeRemaining);
 
     tableData.push(totalsRow);
 
     generateTablePng(tableData, getHeaders(), {
-      filename: `مرخصی-پرسنل-${selectedYear}${
-        selectedMonth !== null ? `-${monthNames[selectedMonth]}` : ""
-      }.png`,
+      filename: `مرخصی-پرسنل-${selectedYear}-${monthNames[monthRange[0]]}-تا-${monthNames[monthRange[1]]}.png`,
     });
   };
 
@@ -242,21 +228,58 @@ const Leave: React.FC = () => {
           </select>
         </div>
         <div className="flex flex-col">
-          <label className="text-sm font-medium mb-1 text-right">ماه:</label>
-          <select
-            value={selectedMonth || ""}
-            onChange={(e) =>
-              setSelectedMonth(e.target.value ? Number(e.target.value) : null)
-            }
-            className="px-3 py-2 border border-gray-300 rounded-md"
-          >
-            <option value="">همه ماهها</option>
-            {monthNames.map((month, index) => (
-              <option key={index} value={index}>
-                {month}
-              </option>
-            ))}
-          </select>
+          <label className="text-sm font-medium mb-1 text-right">
+            بازه ماه: {monthNames[monthRange[0]]} تا {monthNames[monthRange[1]]}
+          </label>
+          <div className="px-3 py-2 border border-gray-300 rounded-md bg-white">
+            <div className="mb-4">
+              <div className="flex justify-between mb-2">
+                <div className="text-sm">
+                  <label className="block text-xs text-gray-600">از ماه:</label>
+                  <select
+                    value={monthRange[0]}
+                    onChange={(e) => {
+                      const start = Number(e.target.value);
+                      setMonthRange([start, Math.max(start, monthRange[1])]);
+                    }}
+                    className="mt-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                  >
+                    {monthNames.map((month, index) => (
+                      <option key={index} value={index}>
+                        {month}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="text-sm">
+                  <label className="block text-xs text-gray-600">تا ماه:</label>
+                  <select
+                    value={monthRange[1]}
+                    onChange={(e) => {
+                      const end = Number(e.target.value);
+                      setMonthRange([Math.min(monthRange[0], end), end]);
+                    }}
+                    className="mt-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                  >
+                    {monthNames.map((month, index) => (
+                      <option key={index} value={index}>
+                        {month}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="relative h-2 bg-gray-200 rounded-lg" dir="rtl" >
+                <div 
+                  className="absolute h-2 bg-blue-500 rounded-lg"
+                  style={{
+                    right: `${(monthRange[0] / 11) * 100}%`,
+                    width: `${((monthRange[1] - monthRange[0]) / 11 ) * 100}%`
+                  }}
+                ></div>
+              </div>
+            </div>
+          </div>
         </div>
         <div className="flex flex-col">
           <label className="text-sm font-medium mb-1 text-right">سال:</label>
@@ -304,36 +327,20 @@ const Leave: React.FC = () => {
               <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase border-b">
                 سمت
               </th>
-              {selectedMonth !== null ? (
-                <>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase border-b">
-                    مرخصی {monthNames[selectedMonth]}
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase border-b">
-                    استفاده شده {monthNames[selectedMonth]}
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase border-b">
-                    باقیمانده {monthNames[selectedMonth]}
-                  </th>
-                </>
-              ) : (
-                <>
-                  {monthNames.map((month, index) => (
-                    <th
-                      key={index}
-                      className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase border-b"
-                    >
-                      {month}
-                    </th>
-                  ))}
-                  <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase border-b">
-                    کل استفاده
-                  </th>
-                  <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase border-b">
-                    کل باقیمانده
-                  </th>
-                </>
-              )}
+              {Array.from({ length: monthRange[1] - monthRange[0] + 1 }, (_, i) => monthRange[0] + i).map((monthIndex) => (
+                <th
+                  key={monthIndex}
+                  className="px-2 py-3 text-center text-xs font-medium text-gray-500 uppercase border-b"
+                >
+                  {monthNames[monthIndex]}
+                </th>
+              ))}
+              <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase border-b">
+                کل استفاده
+              </th>
+              <th className="px-4 py-3 text-xs font-medium text-gray-500 uppercase border-b">
+                کل باقیمانده
+              </th>
               <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase border-b">
                 عملیات
               </th>
@@ -361,68 +368,46 @@ const Leave: React.FC = () => {
                 <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
                   {staff.position}
                 </td>
-                {selectedMonth !== null ? (
-                  <>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                      {staff.leavePerMonth[selectedMonth].toFixed(1)}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                      {staff.usedLeavePerMonth[selectedMonth]}
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
-                      <span
-                        className={`px-2 py-1 rounded text-xs ${
-                          staff.remainingLeavePerMonth[selectedMonth] > 1
-                            ? "bg-green-100 text-green-800"
-                            : staff.remainingLeavePerMonth[selectedMonth] > 0
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {staff.remainingLeavePerMonth[selectedMonth].toFixed(1)}
-                      </span>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    {staff.remainingLeavePerMonth.map((remaining, idx) => (
-                      <td
-                        key={idx}
-                        className="px-2 py-4 whitespace-nowrap text-sm text-center"
-                      >
-                        <span
-                          className={`px-1 py-1 rounded text-xs ${
-                            remaining > 1
-                              ? "bg-green-100 text-green-800"
-                              : remaining > 0
-                              ? "bg-yellow-100 text-yellow-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
-                        >
-                          {remaining.toFixed(1)}
-                        </span>
-                      </td>
-                    ))}
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                        {staff.totalUsedLeave}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          staff.totalRemainingLeave > 10
-                            ? "bg-green-100 text-green-800"
-                            : staff.totalRemainingLeave > 5
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-red-100 text-red-800"
-                        }`}
-                      >
-                        {Math.round(staff.totalRemainingLeave)}
-                      </span>
-                    </td>
-                  </>
-                )}
+                {Array.from({ length: monthRange[1] - monthRange[0] + 1 }, (_, i) => monthRange[0] + i).map((monthIndex) => (
+                  <td
+                    key={monthIndex}
+                    className="px-2 py-4 whitespace-nowrap text-sm text-center"
+                  >
+                    <span
+                      className={`px-1 py-1 rounded text-xs ${
+                        staff.remainingLeavePerMonth[monthIndex] > 1
+                          ? "bg-green-100 text-green-800"
+                          : staff.remainingLeavePerMonth[monthIndex] > 0
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {staff.remainingLeavePerMonth[monthIndex].toFixed(1)}
+                    </span>
+                  </td>
+                ))}
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    {Array.from({ length: monthRange[1] - monthRange[0] + 1 }, (_, i) => monthRange[0] + i)
+                      .reduce((sum, monthIndex) => sum + staff.usedLeavePerMonth[monthIndex], 0)}
+                  </span>
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900 text-center">
+                  <span
+                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      Array.from({ length: monthRange[1] - monthRange[0] + 1 }, (_, i) => monthRange[0] + i)
+                        .reduce((sum, monthIndex) => sum + staff.remainingLeavePerMonth[monthIndex], 0) > 10
+                        ? "bg-green-100 text-green-800"
+                        : Array.from({ length: monthRange[1] - monthRange[0] + 1 }, (_, i) => monthRange[0] + i)
+                          .reduce((sum, monthIndex) => sum + staff.remainingLeavePerMonth[monthIndex], 0) > 5
+                        ? "bg-yellow-100 text-yellow-800"
+                        : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {Math.round(Array.from({ length: monthRange[1] - monthRange[0] + 1 }, (_, i) => monthRange[0] + i)
+                      .reduce((sum, monthIndex) => sum + staff.remainingLeavePerMonth[monthIndex], 0))}
+                  </span>
+                </td>
                 <td className="px-4 py-4 text-center">
                   <button
                     onClick={() => handleDownloadRow(index)}
@@ -442,67 +427,35 @@ const Leave: React.FC = () => {
               >
                 جمع کل:
               </td>
-              {selectedMonth !== null ? (
-                <>
-                  <td className="px-4 py-4 text-right text-sm">
-                    {filteredData
-                      .reduce(
-                        (sum, staff) =>
-                          sum + staff.leavePerMonth[selectedMonth],
-                        0
-                      )
-                      .toFixed(1)}
-                  </td>
-                  <td className="px-4 py-4 text-right text-sm">
-                    {filteredData.reduce(
+              {Array.from({ length: monthRange[1] - monthRange[0] + 1 }, (_, i) => monthRange[0] + i).map((monthIndex) => (
+                <td key={monthIndex} className="px-2 py-4 text-center text-sm">
+                  {filteredData
+                    .reduce(
                       (sum, staff) =>
-                        sum + staff.usedLeavePerMonth[selectedMonth],
+                        sum + staff.remainingLeavePerMonth[monthIndex],
                       0
-                    )}
-                  </td>
-                  <td className="px-4 py-4 text-right text-sm">
-                    {filteredData
-                      .reduce(
-                        (sum, staff) =>
-                          sum + staff.remainingLeavePerMonth[selectedMonth],
-                        0
-                      )
-                      .toFixed(1)}
-                  </td>
-                </>
-              ) : (
-                <>
-                  {Array.from({ length: 12 }, (_, index) => (
-                    <td key={index} className="px-2 py-4 text-center text-sm">
-                      {filteredData
-                        .reduce(
-                          (sum, staff) =>
-                            sum + staff.remainingLeavePerMonth[index],
-                          0
-                        )
-                        .toFixed(1)}
-                    </td>
-                  ))}
-                  <td className="px-4 py-4 text-center text-sm">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                      {filteredData.reduce(
-                        (sum, staff) => sum + staff.totalUsedLeave,
-                        0
-                      )}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 text-center text-sm">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {Math.round(
-                        filteredData.reduce(
-                          (sum, staff) => sum + staff.totalRemainingLeave,
-                          0
-                        )
-                      )}
-                    </span>
-                  </td>
-                </>
-              )}
+                    )
+                    .toFixed(1)}
+                </td>
+              ))}
+              <td className="px-4 py-4 text-center text-sm">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                  {filteredData.reduce((sum, staff) => 
+                    sum + Array.from({ length: monthRange[1] - monthRange[0] + 1 }, (_, i) => monthRange[0] + i)
+                      .reduce((monthSum, monthIndex) => monthSum + staff.usedLeavePerMonth[monthIndex], 0), 0
+                  )}
+                </span>
+              </td>
+              <td className="px-4 py-4 text-center text-sm">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  {Math.round(
+                    filteredData.reduce((sum, staff) => 
+                      sum + Array.from({ length: monthRange[1] - monthRange[0] + 1 }, (_, i) => monthRange[0] + i)
+                        .reduce((monthSum, monthIndex) => monthSum + staff.remainingLeavePerMonth[monthIndex], 0), 0
+                    )
+                  )}
+                </span>
+              </td>
               <td></td>
             </tr>
           </tfoot>

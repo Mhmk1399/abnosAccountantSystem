@@ -48,7 +48,7 @@ interface DailyBookDocument {
   createdBy: string;
   approvedBy?: string;
   status: "draft" | "posted" | "reversed" | "canceled";
-  type:string
+  type: string;
   attachments?: Array<{
     name: string;
     url: string;
@@ -152,9 +152,9 @@ export const DailyBookProvider: React.FC<DailyBookProviderProps> = ({
       const { fixedAccounts } = await fixedAccountsRes.json();
       const { detailedAccounts } = await detailedAccountsRes.json();
 
-      // Fiscal years API returns data in this format: { fiscalYears: [...], pagination: {...} }
+      // Fiscal years API returns data in a different format
       const fiscalYearsData = await fiscalYearsRes.json();
-      const fiscalYears = fiscalYearsData.fiscalYears || [];
+      const fiscalYears = fiscalYearsData.data || [];
 
       console.log("Fetched fiscal years:", fiscalYears);
 

@@ -3,7 +3,6 @@
 import { useState, useRef } from "react";
 import DynamicTable from "@/components/global/DynamicTable";
 import DynamicModal from "@/components/global/DynamicModal";
-import TableFilters, { FilterConfig } from "@/components/global/TableFilters";
 import { TableConfig, DynamicTableRef } from "@/types/tables";
 import { ModalConfig } from "@/components/global/DynamicModal";
 import toast from "react-hot-toast";
@@ -26,7 +25,6 @@ export default function FiscalYears() {
     title: "",
     type: "view",
   });
-  const [filters, setFilters] = useState<Record<string, string | number>>({});
   const tableRef = useRef<DynamicTableRef>(null);
 
   const handleView = (fiscalYear: FiscalYear) => {
@@ -39,6 +37,7 @@ export default function FiscalYears() {
         { key: "name", label: "نام سال مالی" },
         { key: "startDate", label: "تاریخ شروع", type: "date" },
         { key: "endDate", label: "تاریخ پایان", type: "date" },
+        { key: "taxRate", label: "تاریخ پایان", type: "date" },
         {
           key: "isActive",
           label: "وضعیت",
@@ -81,6 +80,12 @@ export default function FiscalYears() {
           key: "endDate",
           label: "تاریخ پایان",
           type: "date",
+          required: true,
+        },
+        {
+          key: "taxRate",
+          label: "نرخ مالیات (%)",
+          type: "number",
           required: true,
         },
         {
@@ -138,59 +143,50 @@ export default function FiscalYears() {
     setIsModalOpen(true);
   };
 
-  const filterConfig: FilterConfig = {
-    fields: [
-      {
-        key: "name",
-        label: "نام سال مالی",
-        type: "text",
-        placeholder: "جستجو در نام سال مالی..."
-      },
-      {
-        key: "isActive",
-        label: "وضعیت",
-        type: "select",
-        options: [
-          { value: "true", label: "فعال" },
-          { value: "false", label: "غیرفعال" }
-        ]
-      },
-      {
-        key: "startDate",
-        label: "تاریخ شروع",
-        type: "dateRange"
-      }
-    ],
-    onFiltersChange: setFilters
-  };
-
   const tableConfig: TableConfig = {
     title: "مدیریت سال‌های مالی",
     description: "لیست سال‌های مالی و اطلاعات آنها",
     endpoint: "/api/fiscalYears",
-    filters,
-    itemsPerPage: 10, // Frontend controls: 10 items per page
+    enableFilters: true,
     columns: [
       {
         key: "name",
         label: "نام سال مالی",
         sortable: true,
+        filterable: true,
+        filterType: "text",
       },
       {
         key: "startDate",
         label: "تاریخ شروع",
         type: "date",
         sortable: true,
+        filterable: true,
+        filterType: "dateRange",
       },
       {
         key: "endDate",
         label: "تاریخ پایان",
         type: "date",
         sortable: true,
+        filterable: true,
+        filterType: "dateRange",
+      },
+      {
+        key: "taxRate",
+        label: "نرخ مالیات (%)",
+        type: "number",
+        sortable: true,
       },
       {
         key: "isActive",
         label: "وضعیت",
+        filterable: true,
+        filterType: "select",
+        filterOptions: [
+          { value: "true", label: "فعال" },
+          { value: "false", label: "غیرفعال" },
+        ],
         render: (value) => (
           <span
             className={`px-2 py-1 rounded-full text-xs ${
@@ -214,7 +210,6 @@ export default function FiscalYears() {
 
   return (
     <div className="container mx-auto py-8" dir="rtl">
-      <TableFilters config={filterConfig} />
       <DynamicTable ref={tableRef} config={tableConfig} />
 
       {isModalOpen && (

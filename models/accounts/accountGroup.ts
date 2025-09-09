@@ -23,10 +23,16 @@ const AccountGroupSchema = new mongoose.Schema(
       enum: ["active", "inactive", "archived"],
       default: "active",
     },
+    fiscalType: {
+      type: String,
+      enum: ["permanat", "temparary"],
+      default: "permanat",
+    },
     type: {
       type: String,
       required: true,
       enum: ["debit", "credit"],
+      default: "debit",
     },
     fiscalYear: {
       type: mongoose.Schema.Types.ObjectId,

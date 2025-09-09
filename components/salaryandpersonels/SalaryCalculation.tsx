@@ -221,6 +221,12 @@ const SalaryCalculation: React.FC = () => {
       render: (value) => Math.round(Number(value)).toLocaleString(),
     },
     {
+      key: "MarriageAllowance",
+      label: "حق ازدواج",
+      sortable: true,
+      render: (value) => Math.round(Number(value)).toLocaleString(),
+    },
+    {
       key: "extraWorkPay",
       label: "اضافه کار",
       sortable: true,
@@ -794,7 +800,7 @@ const SalaryCalculation: React.FC = () => {
                       {selectedStaffData.MarriageAllowance.toLocaleString()}
                     </td>
                     <td className="border border-black p-1 text-center text-sm">
-                      حقوق مشمول بیمه
+                      حق ازدواج
                     </td>
                     <td className="border border-white p-1 text-center text-sm"></td>
                     <td className="border border-white p-1 text-center text-sm"></td>

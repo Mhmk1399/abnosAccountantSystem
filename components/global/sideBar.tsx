@@ -23,12 +23,14 @@ import InvoiceStatusManager from "../invoice/InvoiceStatusManager";
 import WorkflowWrapper from "../workflow/WorkflowWrapper";
 import ProviderTabs from "../provider/ProviderTabs";
 import InventoryTabs from "../inventory/InventoryTabs";
+import { useAuth } from "@/contexts/AuthContext";
+import GroupDetailAccount from "../accounts/GroupDetailAccount";
 
 const WelcomeScreen: React.FC<{
   setActiveChild: (childId: string) => void;
   setIsOpen: (isOpen: boolean) => void;
-  name: string;
-}> = ({ setActiveChild, setIsOpen, name }) => {
+  user: string;
+}> = ({ setActiveChild, setIsOpen, user }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const logoRef = useRef<HTMLDivElement>(null);
   const greetingRef = useRef<HTMLDivElement>(null);
@@ -202,7 +204,7 @@ const WelcomeScreen: React.FC<{
           ref={titleRef}
           className="text-4xl font-bold bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent mb-6"
         >
-          {name} عزیز به آبنوس سیستم خوش آمدید
+          {user} عزیز به آبنوس سیستم خوش آمدید
         </h2>
 
         <p ref={descRef} className="text-gray-600 text-center mb-8 text-lg">
@@ -217,7 +219,7 @@ const WelcomeScreen: React.FC<{
       {/* Quick Access Grid */}
       <div
         ref={gridRef}
-        className="grid grid-cols-2 md:grid-cols-5 gap-6 max-w-7xl mb-12"
+        className="grid grid-cols-2 md:grid-cols-8 gap-6   mb-12"
       >
         {quickAccessItems.map((item) => {
           const Icon = item.icon;
@@ -259,7 +261,7 @@ const renderChildComponent = (
   childId: string | null,
   setActiveChild: (childId: string) => void,
   setIsOpen: (isOpen: boolean) => void,
-  name: string
+  user: string
 ) => {
   try {
     switch (childId) {
@@ -282,12 +284,14 @@ const renderChildComponent = (
       case "provider":
         return <ProviderTabs />;
       case "inventory":
-        return <InventoryTabs  />;
+        return <InventoryTabs />;
+      case "groupDetail":
+        return <GroupDetailAccount />;
       default:
         return (
           <WelcomeScreen
             setActiveChild={setActiveChild}
-            name={name}
+            user={user}
             setIsOpen={setIsOpen}
           />
         );
@@ -304,10 +308,56 @@ const renderChildComponent = (
 };
 
 const SideBar = () => {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [activeChild, setActiveChild] = useState<string | null>(null);
-  const [name] = useState("کاربر");
+
+  // Handle URL hash changes and browser navigation
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.slice(1);
+      const validChildIds = navMenuItems
+        .flatMap((item) => item.children?.map((child) => child.id) || [])
+        .concat(quickAccessItems.map((item) => item.id));
+
+      if (hash && validChildIds.includes(hash)) {
+        setActiveChild(hash);
+        // Auto-open parent dropdown if needed
+        const parentItem = navMenuItems.find((item) =>
+          item.children?.some((child) => child.id === hash)
+        );
+        if (parentItem) {
+          setOpenDropdown(parentItem.id);
+        }
+      } else if (!hash) {
+        setActiveChild(null);
+        setOpenDropdown(null);
+      }
+    };
+
+    handleHashChange();
+    window.addEventListener("hashchange", handleHashChange);
+    window.addEventListener("popstate", handleHashChange);
+
+    return () => {
+      window.removeEventListener("hashchange", handleHashChange);
+      window.removeEventListener("popstate", handleHashChange);
+    };
+  }, []);
+
+  // Update URL when activeChild changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const currentHash = window.location.hash.slice(1);
+
+      if (activeChild && currentHash !== activeChild) {
+        window.history.pushState(null, "", `#${activeChild}`);
+      } else if (activeChild === null && currentHash) {
+        window.history.pushState(null, "", window.location.pathname);
+      }
+    }
+  }, [activeChild]);
 
   const sidebarRef = useRef<HTMLDivElement>(null);
   const toggleButtonRef = useRef<HTMLButtonElement>(null);
@@ -442,7 +492,10 @@ const SideBar = () => {
           <div ref={contentRef} className="h-full flex flex-col py-6 px-4">
             {/* Header */}
             <div className="mt-16 mb-8 px-4">
-              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-5 rounded-2xl shadow-lg flex items-center justify-between">
+              <div
+                className="bg-gradient-to-r from-indigo-600 to-purple-600 p-5 rounded-2xl shadow-lg flex items-center justify-between cursor-pointer"
+                onClick={() => setActiveChild(null)}
+              >
                 <h1 className="text-xl font-bold text-white">آبنوس پلتفورم</h1>
                 <div className="bg-white p-2 rounded-full">
                   <Image
@@ -532,11 +585,11 @@ const SideBar = () => {
             <div className="mt-auto py-4 px-3">
               <div className="flex items-center p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl shadow-sm border border-indigo-100">
                 <div className="flex-shrink-0 w-12 h-12 rounded-full bg-gradient-to-r from-indigo-600 to-purple-600 flex items-center justify-center text-white font-bold ml-3 shadow-md">
-                  {name?.slice(0, 1)}
+                  {user?.username}
                 </div>
                 <div className="flex flex-col">
                   <span className="text-sm font-medium text-indigo-800">
-                    {name}
+                    {user?.username || "کاربر مهمان"}
                   </span>
                 </div>
                 <button
@@ -565,7 +618,12 @@ const SideBar = () => {
       {/* Main Content */}
       <div className="flex-1 transition-all duration-300 p-4">
         <main className="w-full">
-          {renderChildComponent(activeChild, setActiveChild, setIsOpen, name)}
+          {renderChildComponent(
+            activeChild,
+            setActiveChild,
+            setIsOpen,
+            user?.username || "کاربر مهمان"
+          )}
         </main>
       </div>
     </div>

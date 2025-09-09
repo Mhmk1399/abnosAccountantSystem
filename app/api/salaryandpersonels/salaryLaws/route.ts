@@ -11,7 +11,7 @@ export const GET = async (req: NextRequest) => {
 
   if (id) {
     try {
-      const salaryLaws = await SalaryLaws.findById(id);
+      const salaryLaws = await SalaryLaws.findById(id).populate("year");
       if (!salaryLaws) {
         return NextResponse.json(
           { error: "Salary laws not found" },
@@ -29,7 +29,7 @@ export const GET = async (req: NextRequest) => {
 
   if (year) {
     try {
-      const salaryLaws = await SalaryLaws.findOne({ year: parseInt(year) });
+      const salaryLaws = await SalaryLaws.findOne({ year: parseInt(year) }).populate("year");
       if (!salaryLaws) {
         return NextResponse.json(
           { error: "Salary laws not found for this year" },
@@ -46,7 +46,7 @@ export const GET = async (req: NextRequest) => {
   }
 
   try {
-    const salaryLaws = await SalaryLaws.find().sort({ year: -1 });
+    const salaryLaws = await SalaryLaws.find().populate("year").sort({ year: -1 });
     return NextResponse.json({ salaryLaws });
   } catch (error) {
     return NextResponse.json(

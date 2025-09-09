@@ -32,6 +32,10 @@ const TransferTransactionSchema = new mongoose.Schema(
       default: "income",
       required: false,
     },
+    amount: {
+      type: Number,
+      required: true,
+    },
   },
   { timestamps: true }
 );

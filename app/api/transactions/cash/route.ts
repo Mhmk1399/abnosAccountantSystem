@@ -2,7 +2,7 @@ import { NextResponse, NextRequest } from "next/server";
 import CashTransaction from "@/models/transactions/cashTransaction";
 import connect from "@/lib/data";
 
-// GET: Retrieve all cash transactions
+// GET: Retrieve cash transactions with pagination and filtering
 export const GET = async (req: NextRequest) => {
   await connect();
 
@@ -30,12 +30,87 @@ export const GET = async (req: NextRequest) => {
     }
   }
 
-  // Otherwise, return all cash transactions
+  // Get query parameters for pagination and filtering
+  const { searchParams } = new URL(req.url);
+  const page = parseInt(searchParams.get('page') || '1');
+  const limit = parseInt(searchParams.get('limit') || '10');
+  const paidByFilter = searchParams.get('paidByFilter');
+  const payToFilter = searchParams.get('payToFilter');
+  const typeFilter = searchParams.get('typeFilter');
+  const descriptionFilter = searchParams.get('descriptionFilter');
+  const amountFromFilter = searchParams.get('amountFromFilter');
+  const amountToFilter = searchParams.get('amountToFilter');
+  const dateFrom = searchParams.get('dateFrom');
+  const dateTo = searchParams.get('dateTo');
+
   try {
-    const cashTransactions = await CashTransaction.find()
+    // Build filter object
+    const filter: any = {};
+
+    if (paidByFilter) {
+      filter.paidBy = paidByFilter;
+    }
+
+    if (payToFilter) {
+      filter.payTo = payToFilter;
+    }
+
+    if (typeFilter) {
+      filter.type = typeFilter;
+    }
+
+    if (descriptionFilter) {
+      filter.description = { $regex: descriptionFilter, $options: 'i' };
+    }
+
+    if (amountFromFilter || amountToFilter) {
+      filter.amount = {};
+      if (amountFromFilter) {
+        filter.amount.$gte = parseFloat(amountFromFilter);
+      }
+      if (amountToFilter) {
+        filter.amount.$lte = parseFloat(amountToFilter);
+      }
+    }
+
+    if (dateFrom || dateTo) {
+      filter.transactionDate = {};
+      if (dateFrom) {
+        const fromDate = new Date(dateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        filter.transactionDate.$gte = fromDate;
+      }
+      if (dateTo) {
+        const toDate = new Date(dateTo);
+        toDate.setHours(23, 59, 59, 999);
+        filter.transactionDate.$lte = toDate;
+      }
+    }
+
+    // Calculate pagination
+    const skip = (page - 1) * limit;
+
+    // Get total count for pagination
+    const totalRecords = await CashTransaction.countDocuments(filter);
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    // Fetch cash transactions with pagination and filtering
+    const cashTransactions = await CashTransaction.find(filter)
       .populate('paidBy', 'name code')
-      .populate('payTo', 'name code');
-    return NextResponse.json({ cashTransactions });
+      .populate('payTo', 'name code')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    return NextResponse.json({
+      cashTransactions,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalRecords,
+        recordsPerPage: limit,
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       { error: "An error occurred: " + error },
@@ -75,7 +150,9 @@ export const PATCH = async (req: NextRequest) => {
     const body = await req.json();
     const cashTransaction = await CashTransaction.findByIdAndUpdate(id, body, {
       new: true,
-    });
+    })
+      .populate('paidBy', 'name code')
+      .populate('payTo', 'name code');
     if (!cashTransaction) {
       return NextResponse.json(
         { error: "Cash transaction not found" },

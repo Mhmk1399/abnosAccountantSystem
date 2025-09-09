@@ -43,14 +43,16 @@ const FixedAccountSchema = new mongoose.Schema(
       type: String,
       required: true,
       enum: ["debit", "credit"],
+      default: "debit",
     },
     fiscalYear: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "FiscalYear",
     },
-     fiscalType:{
-      type:String,
-      enum:["permanat","temparary"]
+    fiscalType: {
+      type: String,
+      enum: ["permanat", "temparary"],
+      default: "permanat",
     },
   },
   {

@@ -22,7 +22,7 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   onBack,
 }) => {
   const { detailedAccounts } = useDailyBook();
-  
+
   const [formData, setFormData] = useState({
     sourceAccount: "",
     destinationAccount: "",
@@ -31,7 +31,11 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
     description: "",
   });
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<
+      HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+    >
+  ) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
   };
@@ -44,12 +48,14 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
   return (
     <div className="space-y-6">
       <div className="text-center mb-6">
-        <h3 className="text-xl font-semibold text-gray-800">
-          اطلاعات تراکنش
-        </h3>
+        <h3 className="text-xl font-semibold text-gray-800">اطلاعات تراکنش</h3>
         <p className="text-sm text-gray-600 mt-2">
-          نوع: {transactionType === "recived" ? "دریافت" : "پرداخت"} - 
-          روش: {paymentType === "cash" ? "نقدی" : paymentType === "check" ? "چک" : "انتقال"}
+          نوع: {transactionType === "recived" ? "دریافت" : "پرداخت"} - روش:{" "}
+          {paymentType === "cash"
+            ? "نقدی"
+            : paymentType === "check"
+            ? "چک"
+            : "انتقال"}
         </p>
       </div>
 
@@ -68,7 +74,10 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             >
               <option value="">انتخاب حساب مبدا</option>
               {detailedAccounts.map((account) => (
-                <option key={account._id.toString()} value={account._id.toString()}>
+                <option
+                  key={account._id.toString()}
+                  value={account._id.toString()}
+                >
                   {account.name} ({account.code})
                 </option>
               ))}
@@ -88,7 +97,10 @@ const TransactionForm: React.FC<TransactionFormProps> = ({
             >
               <option value="">انتخاب حساب مقصد</option>
               {detailedAccounts.map((account) => (
-                <option key={account._id.toString()} value={account._id.toString()}>
+                <option
+                  key={account._id.toString()}
+                  value={account._id.toString()}
+                >
                   {account.name} ({account.code})
                 </option>
               ))}

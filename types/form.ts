@@ -58,7 +58,10 @@ export interface FormConfig {
   submitButtonText?: string;
   onSuccess?: (data: any) => void;
   onError?: (error: string) => void;
-  onChange?: (fieldName: string, value: string | number | boolean | string[] | Date) => void;
+  onChange?: (
+    fieldName: string,
+    value: string | number | boolean | string[] | Date
+  ) => void;
   className?: string;
   successMessage?: string;
   errorMessage?: string;

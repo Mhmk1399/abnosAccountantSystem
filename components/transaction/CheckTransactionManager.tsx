@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import DatePicker from "react-multi-date-picker";
@@ -14,66 +14,10 @@ import {
   HiOutlineDownload,
 } from "react-icons/hi";
 import { useTableToPng } from "../../hooks/useTableToPng";
-
-export interface Check {
-  _id: string;
-  checkNumber: number;
-  seryNumber: number;
-  fromBank: Array<{
-    shobe?: string;
-    name?: string;
-    accountNumber?: string;
-    _id?: string;
-  }>;
-  status:
-    | "nazeSandogh"
-    | "darJaryanVosool"
-    | "vosoolShode"
-    | "bargashti"
-    | "enteghalDadeShode";
-  inboxStatus?:
-    | "darJaryanVosool"
-    | "vosoolShode"
-    | "bargashti"
-    | "enteghalDadeShode"
-    | null;
-  toBank:
-    | string
-    | {
-        _id?: string;
-        name: string;
-      };
-
-  amount: number;
-  dueDate: string;
-  description?: string;
-  documentNumber?: string;
-  paidBy: string | { _id: string; name: string; code: string };
-  payTo: { _id: string; name: string; code: string };
-  receiverName?: string;
-  senderName?: string;
-  type: "income" | "outcome";
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface Bank {
-  _id?: string;
-  name: string;
-  description: string;
-  branchName: string;
-  branchCode: string;
-  accountNumber: string;
-  ownerName: string;
-  detailedAccount?: string;
-  createdAt?: Date;
-  updatedAt?: Date;
-}
+import { useChecks } from "@/hooks/useCheck";
+import { Bank, Check } from "@/types/type";
 
 export default function ChecksManagement() {
-  const [checks, setChecks] = useState<Check[]>([]);
-  const [filteredChecks, setFilteredChecks] = useState<Check[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedCheck, setSelectedCheck] = useState<Check | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -85,7 +29,10 @@ export default function ChecksManagement() {
   const [dateTo, setDateTo] = useState<Date | null>(null);
   const [bankFilter, setBankFilter] = useState<string>("");
   const [customerFilter, setCustomerFilter] = useState<string>("");
+  const [checkNumberFilter, setCheckNumberFilter] = useState<string>("");
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [recordsPerPage] = useState(10);
   const [banks, setBanks] = useState<Bank[]>([]);
   const [selectedChecks, setSelectedChecks] = useState<Set<string>>(new Set());
   const {
@@ -93,26 +40,27 @@ export default function ChecksManagement() {
     generateTablePng,
     generateSelectedRowsPng,
     isGenerating,
-    error,
+    error: pngError,
   } = useTableToPng();
 
-  // Fetch checks from API
-  const fetchChecks = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch("/api/transactions/cheks");
-      const data = await response.json();
-      setChecks(data.checkTransactions || []);
-      setFilteredChecks(data.checkTransactions || []);
-    } catch (error) {
-      toast.error("خطا در دریافت لیست چک ها");
-      console.error("Error fetching checks:", error);
-      setChecks([]);
-      setFilteredChecks([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Fetch checks using custom hook
+  const {
+    checks,
+    pagination,
+    isLoading,
+    error: swrError,
+    mutate,
+  } = useChecks({
+    currentPage,
+    recordsPerPage,
+    statusFilter,
+    typeFilter,
+    checkNumberFilter,
+    bankFilter,
+    customerFilter,
+    dateFrom,
+    dateTo,
+  });
 
   // Fetch banks for filter
   const fetchBanks = async () => {
@@ -120,88 +68,50 @@ export default function ChecksManagement() {
       const response = await fetch("/api/transactions/bank");
       if (response.ok) {
         const data = await response.json();
-        setBanks(data || []);
+        setBanks(data.banks || data);
       }
     } catch (error) {
-      console.error("Error fetching banks:", error);
+      console.log(error);
+      toast.error("خطا در دریافت لیست بانکها");
     }
   };
+
   useEffect(() => {
-    fetchChecks();
     fetchBanks();
   }, []);
 
-  // Filter checks based on status, type, and date range
-  const applyFilters = () => {
-    let filtered = showOverdueOnly
-      ? CheckPriorityService.getOverdueChecks(
-          checks.map((check) => ({
-            ...check,
-            fromBank: check.fromBank || [],
-            toBank:
-              typeof check.toBank === "object"
-                ? check.toBank._id || ""
-                : check.toBank || "",
-          }))
-        )
-      : [...checks];
-
-    // Status filter
-    if (statusFilter !== "all" && !showOverdueOnly) {
-      filtered = filtered.filter((check) => check.status === statusFilter);
-    }
-
-    // Bank filter
-    if (bankFilter) {
-      filtered = filtered.filter((check) => {
-        const bankName =
-          typeof check.toBank === "object" ? check.toBank.name : "";
-        return bankName?.toLowerCase().includes(bankFilter.toLowerCase());
-      });
-    }
-
-    // Customer filter
-    if (customerFilter) {
-      filtered = filtered.filter(
-        (check) =>
-          check.receiverName
-            ?.toLowerCase()
-            .includes(customerFilter.toLowerCase()) ||
-          check.senderName?.toLowerCase().includes(customerFilter.toLowerCase())
-      );
-    }
-
-    // Type filter
-    if (typeFilter !== "all") {
-      filtered = filtered.filter((check) => check.type === typeFilter);
-    }
-
-    // Date range filter
-    if (dateFrom) {
-      filtered = filtered.filter(
-        (check) => new Date(check.dueDate) >= dateFrom
-      );
-    }
-    if (dateTo) {
-      filtered = filtered.filter((check) => new Date(check.dueDate) <= dateTo);
-    }
-
-    setFilteredChecks(filtered);
-  };
-
-  // Apply filters when filter values change
+  // Reset page when filters change
   useEffect(() => {
-    applyFilters();
+    setCurrentPage(1);
   }, [
-    checks,
     statusFilter,
     typeFilter,
-    dateFrom,
-    dateTo,
+    checkNumberFilter,
     bankFilter,
     customerFilter,
-    showOverdueOnly,
+    dateFrom,
+    dateTo,
   ]);
+
+  // Apply client-side filters (e.g., overdue checks)
+  const filteredChecks = useMemo(() => {
+    let filtered = [...checks];
+
+    if (showOverdueOnly) {
+      filtered = CheckPriorityService.getOverdueChecks(
+        checks.map((check) => ({
+          ...check,
+          fromBank: check.fromBank || [],
+          toBank:
+            typeof check.toBank === "object"
+              ? check.toBank._id || ""
+              : check.toBank || "",
+        }))
+      );
+    }
+
+    return filtered;
+  }, [checks, showOverdueOnly]);
 
   // Handle edit check
   const handleEdit = (check: Check) => {
@@ -241,16 +151,17 @@ export default function ChecksManagement() {
 
       if (response.ok) {
         toast.success("چک با موفقیت ویرایش شد");
-        fetchChecks();
+        // Invalidate cache to fetch updated data
+        mutate();
         setIsEditModalOpen(false);
         setSelectedCheck(null);
         setEditFormData({});
       } else {
-        throw new Error("Failed to update check");
+        throw new Error("خطا در ویرایش چک");
       }
     } catch (error) {
       toast.error("خطا در ویرایش چک");
-      console.error("Error updating check:", error);
+      console.error("خطا در ویرایش چک:", error);
     }
   };
 
@@ -266,22 +177,30 @@ export default function ChecksManagement() {
         },
       });
       toast.success("چک با موفقیت حذف شد");
-      setChecks(checks.filter((check) => check._id !== selectedCheck._id));
+      // Invalidate cache to fetch updated data
+      mutate();
       setIsDeleteModalOpen(false);
       setSelectedCheck(null);
     } catch (error) {
       toast.error("خطا در حذف چک");
-      console.error("Error deleting check:", error);
+      console.error("خطا در حذف چک:", error);
     }
   };
+
   // Format date for display
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("fa-IR");
   };
+
   // Format amount with commas
   const formatAmount = (amount: number) => {
     return amount.toLocaleString("fa-IR");
   };
+
+  // Calculate total amount
+  const totalAmount = useMemo(() => {
+    return filteredChecks.reduce((sum, check) => sum + check.amount, 0);
+  }, [filteredChecks]);
 
   // Handle PNG generation for single row
   const handleRowPng = (check: Check) => {
@@ -417,15 +336,13 @@ export default function ChecksManagement() {
     });
   };
 
-  // Handle PNG generation from existing table DOM
-
   return (
-    <div className="p-6  min-h-screen relative">
-      <div className="max-w-7xl mx-auto">
+    <div className="p-6 min-h-screen relative">
+      <div className="max-w-8xl mx-auto">
         {/* header */}
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-800">مدیریت چک ها</h1>
+            <h1 className="text-2xl font-bold text-gray-800">مدیریت چک‌ها</h1>
             {(() => {
               const checksWithFromBank = checks.map((check) => ({
                 ...check,
@@ -454,7 +371,7 @@ export default function ChecksManagement() {
                       }))
                     ).length
                   }{" "}
-                  چک نزدیک سررسید (1هفته آینده)
+                  چک نزدیک سررسید (۱ هفته آینده)
                 </span>
                 <button
                   onClick={() => setShowOverdueOnly(!showOverdueOnly)}
@@ -499,15 +416,17 @@ export default function ChecksManagement() {
         </div>
 
         {/* Error display */}
-        {error && (
+        {(pngError || swrError) && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-600 text-sm">{error}</p>
+            <p className="text-red-600 text-sm">
+              {pngError || swrError?.message}
+            </p>
           </div>
         )}
 
         {/* Filters */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 justify-center items-center gap-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 justify-center items-center gap-1">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 فیلتر بر اساس وضعیت
@@ -517,7 +436,7 @@ export default function ChecksManagement() {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="all">همه وضعیت ها</option>
+                <option value="all">همه وضعیت‌ها</option>
                 <option value="nazeSandogh">نزد صندوق</option>
                 <option value="darJaryanVosool">در جریان وصول</option>
                 <option value="vosoolShode">وصول شده</option>
@@ -567,6 +486,7 @@ export default function ChecksManagement() {
                 inputClass="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 فیلتر بر اساس بانک
@@ -576,7 +496,7 @@ export default function ChecksManagement() {
                 onChange={(e) => setBankFilter(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">همه بانک ها</option>
+                <option value="">همه بانکها</option>
                 {banks.map((bank) => (
                   <option key={bank._id} value={bank.name}>
                     {bank.name}
@@ -596,6 +516,18 @@ export default function ChecksManagement() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                شماره چک
+              </label>
+              <input
+                type="number"
+                value={checkNumberFilter}
+                onChange={(e) => setCheckNumberFilter(e.target.value)}
+                placeholder="شماره چک"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
             <div className="">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 پاک کردن فیلترها
@@ -608,7 +540,9 @@ export default function ChecksManagement() {
                   setDateTo(null);
                   setBankFilter("");
                   setCustomerFilter("");
+                  setCheckNumberFilter("");
                   setShowOverdueOnly(false);
+                  setCurrentPage(1);
                 }}
                 className="w-full px-4 py-2 cursor-pointer border border-red-500 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition"
               >
@@ -620,7 +554,7 @@ export default function ChecksManagement() {
 
         {/* Checks Table */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          {loading ? (
+          {isLoading ? (
             <div className="p-8 text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
               <p className="mt-4 text-gray-600">در حال دریافت اطلاعات...</p>
@@ -670,6 +604,12 @@ export default function ChecksManagement() {
                       scope="col"
                       className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
+                      بانک
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
                       مبلغ (ریال)
                     </th>
                     <th
@@ -684,7 +624,6 @@ export default function ChecksManagement() {
                     >
                       تاریخ ایجاد
                     </th>
-
                     <th
                       scope="col"
                       className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
@@ -697,7 +636,18 @@ export default function ChecksManagement() {
                     >
                       نوع
                     </th>
-
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
+                      پرداخت کننده
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
+                      دریافت کننده
+                    </th>
                     <th
                       scope="col"
                       className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
@@ -737,13 +687,18 @@ export default function ChecksManagement() {
                           />
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {idx + 1}
+                          {(currentPage - 1) * recordsPerPage + idx + 1}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           {check.checkNumber}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {check.receiverName || "-"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {typeof check.toBank === "object"
+                            ? check.toBank.name
+                            : "-"}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {formatAmount(check.amount)}
@@ -767,7 +722,6 @@ export default function ChecksManagement() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {formatDate(check.createdAt)}
                         </td>
-
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <span
@@ -820,7 +774,20 @@ export default function ChecksManagement() {
                             {check.type === "income" ? "دریافتی" : "پرداختی"}
                           </span>
                         </td>
-
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {check.paidBy && check.paidBy.length > 0
+                            ? check.paidBy
+                                .map((account) => account.name)
+                                .join(", ")
+                            : "-"}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {check.payTo && check.payTo.length > 0
+                            ? check.payTo
+                                .map((account) => account.name)
+                                .join(", ")
+                            : "-"}
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex gap-2">
                             <div className="relative group">
@@ -837,19 +804,17 @@ export default function ChecksManagement() {
                                 مشاهده جزئیات
                               </span>
                             </div>
-
                             <div className="relative group">
                               <button
                                 onClick={() => handleEdit(check)}
                                 className="text-amber-600 border cursor-pointer hover:text-amber-900 px-3 py-2 rounded-lg hover:bg-amber-50 transition-all duration-200 flex items-center justify-center"
                               >
-                                <HiOutlinePencilAlt className="w-4 h-4" />{" "}
+                                <HiOutlinePencilAlt className="w-4 h-4" />
                               </button>
                               <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 text-xs text-white bg-gray-800 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10">
                                 ویرایش
                               </span>
                             </div>
-
                             <div className="relative group">
                               <button
                                 onClick={() => {
@@ -882,7 +847,74 @@ export default function ChecksManagement() {
                     );
                   })}
                 </tbody>
+                <tfoot className="bg-gray-100">
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-6 py-4 text-right text-sm font-bold text-gray-900"
+                    >
+                      جمع کل:
+                    </td>
+                    <td className="px-6 py-4 text-right text-sm font-bold text-gray-900">
+                      {formatAmount(totalAmount)}
+                    </td>
+                    <td colSpan={7}></td>
+                  </tr>
+                </tfoot>
               </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {pagination.totalPages > 1 && (
+            <div className="mt-6 flex flex-col sm:flex-row justify-center items-center gap-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  قبلی
+                </button>
+                <div className="flex gap-1">
+                  {Array.from(
+                    { length: Math.min(5, pagination.totalPages) },
+                    (_, i) => {
+                      let pageNum;
+                      if (pagination.totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= pagination.totalPages - 2) {
+                        pageNum = pagination.totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`px-3 py-2 border rounded-md text-sm ${
+                            currentPage === pageNum
+                              ? "bg-blue-500 text-white border-blue-500"
+                              : "border-gray-300 hover:bg-gray-50"
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    }
+                  )}
+                </div>
+                <button
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === pagination.totalPages}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  بعدی
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -893,12 +925,12 @@ export default function ChecksManagement() {
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-lg text-black shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+              className="bg-white rounded-lg text-black shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
             >
               <div className="p-6">
                 <div className="flex justify-between items-center border-b pb-4">
                   <h3 className="text-lg font-medium text-gray-900">
-                    مشاهده جزئیات چک
+                    مشاهده جزئیات چک شماره {selectedCheck.checkNumber}
                   </h3>
                   <button
                     onClick={() => setIsViewModalOpen(false)}
@@ -922,10 +954,11 @@ export default function ChecksManagement() {
                 </div>
 
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Basic Check Information */}
                   <div className="space-y-4">
                     <div>
                       <h4 className="text-md font-medium text-gray-800 border-b pb-2">
-                        اطلاعات چک
+                        اطلاعات اصلی چک
                       </h4>
                       <div className="mt-2 space-y-3">
                         <div className="flex justify-between">
@@ -934,6 +967,20 @@ export default function ChecksManagement() {
                           </span>
                           <span className="text-sm font-medium">
                             {selectedCheck.checkNumber || "-"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-500">
+                            شماره سری:
+                          </span>
+                          <span className="text-sm font-medium">
+                            {selectedCheck.seryNumber || "-"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-500">مبلغ:</span>
+                          <span className="text-sm font-medium">
+                            {formatAmount(selectedCheck.amount || 0)} ریال
                           </span>
                         </div>
                         <div className="flex justify-between">
@@ -947,53 +994,100 @@ export default function ChecksManagement() {
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-sm text-gray-500">مبلغ:</span>
+                          <span className="text-sm text-gray-500">
+                            شماره سند:
+                          </span>
                           <span className="text-sm font-medium">
-                            {formatAmount(selectedCheck.amount || 0)} ریال
+                            {selectedCheck.documentNumber || "-"}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-sm text-gray-500">در وجه:</span>
-                          <span className="text-sm font-medium">
-                            {selectedCheck.receiverName || "-"}
+                          <span className="text-sm text-gray-500">نوع:</span>
+                          <span
+                            className={`text-sm font-medium px-2 py-1 rounded ${
+                              selectedCheck.type === "income"
+                                ? "bg-green-100 text-green-800"
+                                : "bg-orange-100 text-orange-800"
+                            }`}
+                          >
+                            {selectedCheck.type === "income"
+                              ? "دریافتی"
+                              : "پرداختی"}
                           </span>
                         </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-500">وضعیت:</span>
+                          <span
+                            className={`text-sm font-medium px-2 py-1 rounded ${
+                              selectedCheck.status === "vosoolShode"
+                                ? "bg-green-100 text-green-800"
+                                : selectedCheck.status === "nazeSandogh"
+                                ? "bg-yellow-100 text-yellow-800"
+                                : selectedCheck.status === "bargashti"
+                                ? "bg-red-100 text-red-800"
+                                : selectedCheck.status === "darJaryanVosool"
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-purple-100 text-purple-800"
+                            }`}
+                          >
+                            {selectedCheck.status === "nazeSandogh"
+                              ? "نزد صندوق"
+                              : selectedCheck.status === "darJaryanVosool"
+                              ? "در جریان وصول"
+                              : selectedCheck.status === "vosoolShode"
+                              ? "وصول شده"
+                              : selectedCheck.status === "bargashti"
+                              ? "برگشتی"
+                              : "انتقال داده شده"}
+                          </span>
+                        </div>
+                        {selectedCheck.status === "nazeSandogh" &&
+                          selectedCheck.inboxStatus && (
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-500">
+                                وضعیت در صندوق:
+                              </span>
+                              <span className="text-sm font-medium text-blue-600">
+                                {selectedCheck.inboxStatus === "darJaryanVosool"
+                                  ? "در جریان وصول"
+                                  : selectedCheck.inboxStatus === "vosoolShode"
+                                  ? "وصول شده"
+                                  : selectedCheck.inboxStatus === "bargashti"
+                                  ? "برگشتی"
+                                  : "انتقال داده شده"}
+                              </span>
+                            </div>
+                          )}
                       </div>
                     </div>
                   </div>
 
+                  {/* Names and Bank Information */}
                   <div className="space-y-4">
                     <div>
                       <h4 className="text-md font-medium text-gray-800 border-b pb-2">
-                        اطلاعات بانک
+                        اطلاعات اشخاص و بانک
                       </h4>
                       <div className="mt-2 space-y-3">
                         <div className="flex justify-between">
-                          <span className="text-sm text-gray-500">بانک :</span>
+                          <span className="text-sm text-gray-500">
+                            صادرکننده:
+                          </span>
                           <span className="text-sm font-medium">
-                            {typeof selectedCheck.toBank === "object"
-                              ? selectedCheck.toBank.name || "-"
-                              : selectedCheck.toBank || "-"}
+                            {selectedCheck.senderName || "-"}
                           </span>
                         </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h4 className="text-md font-medium text-gray-800 border-b pb-2">
-                        اطلاعات تکمیلی
-                      </h4>
-                      <div className="mt-2 space-y-3">
                         <div className="flex justify-between">
                           <span className="text-sm text-gray-500">
-                            نوع انتقال:
+                            دریافت کننده:
                           </span>
-                          <span className="text-sm font-medium">چک</span>
+                          <span className="text-sm font-medium">
+                            {selectedCheck.receiverName || "-"}
+                          </span>
                         </div>
-
                         <div className="flex justify-between">
                           <span className="text-sm text-gray-500">
-                            تاریخ سند:
+                            تاریخ ایجاد:
                           </span>
                           <span className="text-sm font-medium">
                             {selectedCheck.createdAt
@@ -1003,22 +1097,270 @@ export default function ChecksManagement() {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-sm text-gray-500">
-                            نام صادر کننده:
+                            آخرین بروزرسانی:
                           </span>
                           <span className="text-sm font-medium">
-                            {selectedCheck.senderName || "-"}
+                            {selectedCheck.updatedAt
+                              ? formatDate(selectedCheck.updatedAt)
+                              : "-"}
                           </span>
                         </div>
                       </div>
                     </div>
+
+                    {/* Bank Information */}
+                    {typeof selectedCheck.toBank === "object" &&
+                      selectedCheck.toBank && (
+                        <div>
+                          <h4 className="text-md font-medium text-gray-800 border-b pb-2">
+                            اطلاعات بانک مقصد
+                          </h4>
+                          <div className="mt-2 space-y-3">
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-500">
+                                نام بانک:
+                              </span>
+                              <span className="text-sm font-medium">
+                                {selectedCheck.toBank.name || "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-500">
+                                نام شعبه:
+                              </span>
+                              <span className="text-sm font-medium">
+                                {(selectedCheck.toBank as any)?.branchName ||
+                                  "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-500">
+                                کد شعبه:
+                              </span>
+                              <span className="text-sm font-medium">
+                                {(selectedCheck.toBank as any)?.branchCode ||
+                                  "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-500">
+                                شماره حساب:
+                              </span>
+                              <span className="text-sm font-medium">
+                                {(selectedCheck.toBank as any)?.accountNumber ||
+                                  "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-500">
+                                نام صاحب حساب:
+                              </span>
+                              <span className="text-sm font-medium">
+                                {(selectedCheck.toBank as any)?.ownerName ||
+                                  "-"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                   </div>
                 </div>
 
+                {/* Other Side Banks */}
+                {selectedCheck.otherSideBank &&
+                  selectedCheck.otherSideBank.length > 0 && (
+                    <div className="mt-6">
+                      <h4 className="text-md font-medium text-gray-800 border-b pb-2">
+                        اطلاعات بانک طرف مقابل
+                      </h4>
+                      <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {selectedCheck.otherSideBank.map((bank, index) => (
+                          <div
+                            key={bank._id || index}
+                            className="bg-gray-50 p-3 rounded-lg"
+                          >
+                            <div className="space-y-2">
+                              <div className="flex justify-between">
+                                <span className="text-sm text-gray-500">
+                                  نام بانک:
+                                </span>
+                                <span className="text-sm font-medium">
+                                  {bank.name || "-"}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-sm text-gray-500">
+                                  صاحب حساب:
+                                </span>
+                                <span className="text-sm font-medium">
+                                  {bank.owner || "-"}
+                                </span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-sm text-gray-500">
+                                  شماره حساب:
+                                </span>
+                                <span className="text-sm font-medium">
+                                  {bank.accountNumber || "-"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                {/* Paid By Accounts */}
+                {selectedCheck.paidBy && selectedCheck.paidBy.length > 0 && (
+                  <div className="mt-6">
+                    <h4 className="text-md font-medium text-gray-800 border-b pb-2">
+                      حساب‌های پرداخت کننده
+                    </h4>
+                    <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {selectedCheck.paidBy.map((account, index) => (
+                        <div
+                          key={account._id || index}
+                          className="bg-blue-50 p-3 rounded-lg"
+                        >
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-500">
+                                نام حساب:
+                              </span>
+                              <span className="text-sm font-medium">
+                                {account.name || "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-500">
+                                کد حساب:
+                              </span>
+                              <span className="text-sm font-medium">
+                                {account.code || "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-500">
+                                نوع:
+                              </span>
+                              <span className="text-sm font-medium">
+                                {account.type === "debit"
+                                  ? "بدهکار"
+                                  : "بستانکار"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-500">
+                                وضعیت:
+                              </span>
+                              <span
+                                className={`text-sm font-medium px-2 py-1 rounded ${
+                                  account.status === "active"
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-red-100 text-red-800"
+                                }`}
+                              >
+                                {account.status === "active"
+                                  ? "فعال"
+                                  : "غیرفعال"}
+                              </span>
+                            </div>
+                            {account.balance && (
+                              <div className="flex justify-between">
+                                <span className="text-sm text-gray-500">
+                                  موجودی خالص:
+                                </span>
+                                <span className="text-sm font-medium">
+                                  {formatAmount(account.balance.net || 0)} ریال
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Pay To Accounts */}
+                {selectedCheck.payTo && selectedCheck.payTo.length > 0 && (
+                  <div className="mt-6">
+                    <h4 className="text-md font-medium text-gray-800 border-b pb-2">
+                      حساب‌های دریافت کننده
+                    </h4>
+                    <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {selectedCheck.payTo.map((account, index) => (
+                        <div
+                          key={account._id || index}
+                          className="bg-green-50 p-3 rounded-lg"
+                        >
+                          <div className="space-y-2">
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-500">
+                                نام حساب:
+                              </span>
+                              <span className="text-sm font-medium">
+                                {account.name || "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-500">
+                                کد حساب:
+                              </span>
+                              <span className="text-sm font-medium">
+                                {account.code || "-"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-500">
+                                نوع:
+                              </span>
+                              <span className="text-sm font-medium">
+                                {account.type === "debit"
+                                  ? "بدهکار"
+                                  : "بستانکار"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-500">
+                                وضعیت:
+                              </span>
+                              <span
+                                className={`text-sm font-medium px-2 py-1 rounded ${
+                                  account.status === "active"
+                                    ? "bg-green-100 text-green-800"
+                                    : "bg-red-100 text-red-800"
+                                }`}
+                              >
+                                {account.status === "active"
+                                  ? "فعال"
+                                  : "غیرفعال"}
+                              </span>
+                            </div>
+                            {account.balance && (
+                              <div className="flex justify-between">
+                                <span className="text-sm text-gray-500">
+                                  موجودی خالص:
+                                </span>
+                                <span className="text-sm font-medium">
+                                  {formatAmount(account.balance.net || 0)} ریال
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Description */}
                 <div className="mt-6">
                   <h4 className="text-md font-medium text-gray-800 border-b pb-2">
                     توضیحات
                   </h4>
-                  <p className="mt-2 text-sm text-gray-600">
+                  <p className="mt-2 text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
                     {selectedCheck.description || "توضیحاتی ثبت نشده است"}
                   </p>
                 </div>
@@ -1072,7 +1414,6 @@ export default function ChecksManagement() {
                     </svg>
                   </button>
                 </div>
-
                 <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1090,7 +1431,6 @@ export default function ChecksManagement() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       شماره سری
@@ -1107,7 +1447,6 @@ export default function ChecksManagement() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       مبلغ (ریال)
@@ -1124,7 +1463,6 @@ export default function ChecksManagement() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       تاریخ سررسید
@@ -1147,7 +1485,6 @@ export default function ChecksManagement() {
                       inputClass="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       بانک
@@ -1174,7 +1511,6 @@ export default function ChecksManagement() {
                       ))}
                     </select>
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       وضعیت
@@ -1202,7 +1538,6 @@ export default function ChecksManagement() {
                       <option value="enteghalDadeShode">انتقال داده شده</option>
                     </select>
                   </div>
-
                   {editFormData.status === "nazeSandogh" && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1233,7 +1568,6 @@ export default function ChecksManagement() {
                       </select>
                     </div>
                   )}
-
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       نوع
@@ -1252,7 +1586,6 @@ export default function ChecksManagement() {
                       <option value="outcome">پرداختی</option>
                     </select>
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       نام صادرکننده
@@ -1269,7 +1602,6 @@ export default function ChecksManagement() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       نام دریافت کننده
@@ -1286,7 +1618,6 @@ export default function ChecksManagement() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
-
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       توضیحات
@@ -1304,7 +1635,6 @@ export default function ChecksManagement() {
                     />
                   </div>
                 </div>
-
                 <div className="flex justify-start gap-2 mt-6">
                   <button
                     onClick={() => {
@@ -1359,7 +1689,6 @@ export default function ChecksManagement() {
                     </svg>
                   </button>
                 </div>
-
                 <div className="mt-6">
                   <p className="text-sm text-gray-600">
                     آیا از حذف چک شماره{" "}
@@ -1373,7 +1702,6 @@ export default function ChecksManagement() {
                     اطمینان دارید؟
                   </p>
                 </div>
-
                 <div className="mt-6 flex justify-start gap-3">
                   <button
                     onClick={() => setIsDeleteModalOpen(false)}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import DatePicker, { DateObject } from "react-multi-date-picker";
@@ -16,42 +16,25 @@ import {
 } from "react-icons/hi";
 import { useTableToPng } from "../../hooks/useTableToPng";
 import { useDailyBook } from "@/contexts/DailyBookContext";
-
-export interface CashTransaction {
-  _id: string;
-  amount: number;
-  transactionDate: string;
-  description?: string;
-  documentNumber?: string;
-  documentDate?: string;
-  paidBy: { _id: string; name: string; code: string };
-  payTo: { _id: string; name: string; code: string };
-  type: "income" | "outcome";
-  createdAt: string;
-  updatedAt: string;
-}
+import { useCash } from "@/hooks/useCash";
+import { CashTransaction } from "@/types/type";
 
 export default function CashTransactionManager() {
-  const [transactions, setTransactions] = useState<CashTransaction[]>([]);
-  const [filteredTransactions, setFilteredTransactions] = useState<
-    CashTransaction[]
-  >([]);
-  const [loading, setLoading] = useState(true);
   const [selectedTransaction, setSelectedTransaction] =
     useState<CashTransaction | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [filters, setFilters] = useState({
-    dateFrom: null as DateObject | null,
-    dateTo: null as DateObject | null,
-    amountFrom: "",
-    amountTo: "",
-    description: "",
-    paidBy: "",
-    payTo: "",
-    type: "",
-  });
+  const [paidByFilter, setPaidByFilter] = useState("");
+  const [payToFilter, setPayToFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
+  const [descriptionFilter, setDescriptionFilter] = useState("");
+  const [amountFromFilter, setAmountFromFilter] = useState("");
+  const [amountToFilter, setAmountToFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState<Date | null>(null);
+  const [dateTo, setDateTo] = useState<Date | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [recordsPerPage] = useState(10);
   const { detailedAccounts } = useDailyBook();
   const [selectedTransactions, setSelectedTransactions] = useState<Set<string>>(
     new Set()
@@ -61,119 +44,65 @@ export default function CashTransactionManager() {
     generateTablePng,
     generateSelectedRowsPng,
     isGenerating,
-    error,
+    error: pngError,
   } = useTableToPng();
 
-  const fetchTransactions = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch("/api/transactions/cash");
-      const data = await response.json();
-      console.log("API Response:", data); // Debug log
-      console.log("Transactions:", data.cashTransactions); // Debug log
-      setTransactions(data.cashTransactions || []);
-      setFilteredTransactions(data.cashTransactions || []);
-    } catch (error) {
-      toast.error("خطا در دریافت لیست تراکنش های نقدی");
-      console.error("Error fetching transactions:", error);
-      setTransactions([]);
-      setFilteredTransactions([]);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Fetch cash transactions using custom hook
+  const {
+    transactions,
+    pagination,
+    isLoading,
+    error: swrError,
+    mutate,
+  } = useCash({
+    currentPage,
+    recordsPerPage,
+    paidByFilter,
+    payToFilter,
+    typeFilter,
+    descriptionFilter,
+    amountFromFilter,
+    amountToFilter,
+    dateFrom,
+    dateTo,
+  });
 
-  const applyFilters = () => {
-    let filtered = [...transactions];
+  // Debug logging
+  console.log("Filters:", { paidByFilter, payToFilter, typeFilter });
 
-    if (filters.dateFrom) {
-      const fromDate = filters.dateFrom.toDate();
-      filtered = filtered.filter((transaction) => {
-        const transactionDate = new Date(transaction.transactionDate);
-        return transactionDate >= fromDate;
-      });
-    }
-
-    if (filters.dateTo) {
-      const toDate = filters.dateTo.toDate();
-      filtered = filtered.filter((transaction) => {
-        const transactionDate = new Date(transaction.transactionDate);
-        return transactionDate <= toDate;
-      });
-    }
-
-    if (filters.amountFrom) {
-      filtered = filtered.filter(
-        (transaction) => transaction.amount >= Number(filters.amountFrom)
-      );
-    }
-
-    if (filters.amountTo) {
-      filtered = filtered.filter(
-        (transaction) => transaction.amount <= Number(filters.amountTo)
-      );
-    }
-
-    if (filters.description) {
-      filtered = filtered.filter((transaction) =>
-        transaction.description
-          ?.toLowerCase()
-          .includes(filters.description.toLowerCase())
-      );
-    }
-
-    if (filters.paidBy) {
-      filtered = filtered.filter((transaction) =>
-        typeof transaction.paidBy === "object"
-          ? transaction.paidBy._id === filters.paidBy
-          : transaction.paidBy === filters.paidBy
-      );
-    }
-
-    if (filters.payTo) {
-      filtered = filtered.filter((transaction) =>
-        typeof transaction.payTo === "object"
-          ? transaction.payTo._id === filters.payTo
-          : transaction.payTo === filters.payTo
-      );
-    }
-
-    if (filters.type) {
-      filtered = filtered.filter(
-        (transaction) => transaction.type === filters.type
-      );
-    }
-
-    setFilteredTransactions(filtered);
-  };
-
+  // Reset page when filters change
   useEffect(() => {
-    applyFilters();
-  }, [transactions, filters]);
-
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
-
-  const handleFilterChange = (
-    key: string,
-    value: string | DateObject | null
-  ) => {
-    setFilters((prev) => ({ ...prev, [key]: value }));
-  };
+    setCurrentPage(1);
+  }, [
+    paidByFilter,
+    payToFilter,
+    typeFilter,
+    descriptionFilter,
+    amountFromFilter,
+    amountToFilter,
+    dateFrom,
+    dateTo,
+  ]);
 
   const clearFilters = () => {
-    setFilters({
-      dateFrom: null,
-      dateTo: null,
-      amountFrom: "",
-      amountTo: "",
-      description: "",
-      paidBy: "",
-      payTo: "",
-      type: "",
-    });
+    setPaidByFilter("");
+    setPayToFilter("");
+    setTypeFilter("all");
+    setDescriptionFilter("");
+    setAmountFromFilter("");
+    setAmountToFilter("");
+    setDateFrom(null);
+    setDateTo(null);
+    setCurrentPage(1);
   };
+
+  // Calculate total amount
+  const totalAmount = useMemo(() => {
+    return transactions.reduce(
+      (sum, transaction) => sum + transaction.amount,
+      0
+    );
+  }, [transactions]);
 
   const [formData, setFormData] = useState({
     amount: "",
@@ -210,6 +139,8 @@ export default function CashTransactionManager() {
 
       if (response.ok) {
         toast.success("تراکنش با موفقیت ویرایش شد");
+        // Invalidate cache to fetch updated data
+        mutate();
         setIsEditModalOpen(false);
         setSelectedTransaction(null);
         setFormData({
@@ -222,7 +153,6 @@ export default function CashTransactionManager() {
           payTo: "",
           type: "income",
         });
-        fetchTransactions();
       } else {
         toast.error("خطا در ویرایش تراکنش");
       }
@@ -243,9 +173,8 @@ export default function CashTransactionManager() {
         },
       });
       toast.success("تراکنش با موفقیت حذف شد");
-      setTransactions(
-        transactions.filter((t) => t._id !== selectedTransaction._id)
-      );
+      // Invalidate cache to fetch updated data
+      mutate();
       setIsDeleteModalOpen(false);
       setSelectedTransaction(null);
     } catch (error) {
@@ -262,6 +191,7 @@ export default function CashTransactionManager() {
     return amount.toLocaleString("fa-IR");
   };
 
+  // Handle PNG generation for single row
   const handleRowPng = (transaction: CashTransaction) => {
     const headers = [
       "#",
@@ -275,7 +205,9 @@ export default function CashTransactionManager() {
     ];
     const rowData = {
       index:
-        filteredTransactions.findIndex((t) => t._id === transaction._id) + 1,
+        (currentPage - 1) * recordsPerPage +
+        transactions.findIndex((t) => t._id === transaction._id) +
+        1,
       amount: formatAmount(transaction.amount),
       transactionDate: formatDate(transaction.transactionDate),
       paidBy:
@@ -292,12 +224,13 @@ export default function CashTransactionManager() {
     };
     generateRowPng(rowData, headers, {
       filename: `cash-transaction-${
-        transaction.documentNumber
+        transaction.documentNumber || transaction._id
       }-${Date.now()}.png`,
       backgroundColor: "#ffffff",
     });
   };
 
+  // Handle PNG generation for entire table
   const handleTablePng = () => {
     const headers = [
       "#",
@@ -309,8 +242,8 @@ export default function CashTransactionManager() {
       "نوع",
       "توضیحات",
     ];
-    const tableData = filteredTransactions.map((transaction, idx) => ({
-      index: idx + 1,
+    const tableData = transactions.map((transaction, idx) => ({
+      index: (currentPage - 1) * recordsPerPage + idx + 1,
       amount: formatAmount(transaction.amount),
       transactionDate: formatDate(transaction.transactionDate),
       paidBy:
@@ -344,19 +277,21 @@ export default function CashTransactionManager() {
   };
 
   const handleSelectAll = () => {
-    if (selectedTransactions.size === filteredTransactions.length) {
+    if (selectedTransactions.size === transactions.length) {
       setSelectedTransactions(new Set());
     } else {
-      setSelectedTransactions(new Set(filteredTransactions.map((t) => t._id)));
+      setSelectedTransactions(new Set(transactions.map((t) => t._id)));
     }
   };
 
   const handleSelectedRowsPng = () => {
-    const selectedData = filteredTransactions
+    const selectedData = transactions
       .filter((t) => selectedTransactions.has(t._id))
       .map((transaction) => ({
         index:
-          filteredTransactions.findIndex((t) => t._id === transaction._id) + 1,
+          (currentPage - 1) * recordsPerPage +
+          transactions.findIndex((t) => t._id === transaction._id) +
+          1,
         amount: formatAmount(transaction.amount),
         transactionDate: formatDate(transaction.transactionDate),
         paidBy:
@@ -404,7 +339,7 @@ export default function CashTransactionManager() {
           <div className="flex gap-2">
             <button
               onClick={handleTablePng}
-              disabled={isGenerating || filteredTransactions.length === 0}
+              disabled={isGenerating || transactions.length === 0}
               className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
             >
               {isGenerating ? (
@@ -430,9 +365,11 @@ export default function CashTransactionManager() {
           </div>
         </div>
 
-        {error && (
+        {(pngError || swrError) && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-600 text-sm">{error}</p>
+            <p className="text-red-600 text-sm">
+              {pngError || swrError?.message}
+            </p>
           </div>
         )}
 
@@ -444,8 +381,8 @@ export default function CashTransactionManager() {
                 پرداخت کننده
               </label>
               <select
-                value={filters.paidBy}
-                onChange={(e) => handleFilterChange("paidBy", e.target.value)}
+                value={paidByFilter}
+                onChange={(e) => setPaidByFilter(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">همه</option>
@@ -464,8 +401,8 @@ export default function CashTransactionManager() {
                 دریافت کننده
               </label>
               <select
-                value={filters.payTo}
-                onChange={(e) => handleFilterChange("payTo", e.target.value)}
+                value={payToFilter}
+                onChange={(e) => setPayToFilter(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">همه</option>
@@ -483,49 +420,29 @@ export default function CashTransactionManager() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 از تاریخ
               </label>
-              <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-lg border border-gray-300">
-                <FaRegCalendarAlt className="text-gray-400" />
-                <DatePicker
-                  value={filters.dateFrom}
-                  onChange={(date: DateObject | DateObject[] | null) => {
-                    if (date && typeof date === "object" && "toDate" in date) {
-                      handleFilterChange("dateFrom", date);
-                    } else {
-                      handleFilterChange("dateFrom", null);
-                    }
-                  }}
-                  calendar={persian}
-                  locale={persian_fa}
-                  format="YYYY/MM/DD"
-                  inputClass="w-full bg-transparent focus:outline-none"
-                  calendarPosition="bottom-right"
-                  placeholder="از تاریخ"
-                />
-              </div>
+              <DatePicker
+                calendar={persian}
+                locale={persian_fa}
+                value={dateFrom}
+                onChange={(date) => setDateFrom(date?.toDate() || null)}
+                placeholder="از تاریخ"
+                format="YYYY/MM/DD"
+                inputClass="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 تا تاریخ
               </label>
-              <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-lg border border-gray-300">
-                <FaRegCalendarAlt className="text-gray-400" />
-                <DatePicker
-                  value={filters.dateTo}
-                  onChange={(date: DateObject | DateObject[] | null) => {
-                    if (date && typeof date === "object" && "toDate" in date) {
-                      handleFilterChange("dateTo", date);
-                    } else {
-                      handleFilterChange("dateTo", null);
-                    }
-                  }}
-                  calendar={persian}
-                  locale={persian_fa}
-                  format="YYYY/MM/DD"
-                  inputClass="w-full bg-transparent focus:outline-none"
-                  calendarPosition="bottom-right"
-                  placeholder="تا تاریخ"
-                />
-              </div>
+              <DatePicker
+                calendar={persian}
+                locale={persian_fa}
+                value={dateTo}
+                onChange={(date) => setDateTo(date?.toDate() || null)}
+                placeholder="تا تاریخ"
+                format="YYYY/MM/DD"
+                inputClass="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -533,10 +450,8 @@ export default function CashTransactionManager() {
               </label>
               <input
                 type="number"
-                value={filters.amountFrom}
-                onChange={(e) =>
-                  handleFilterChange("amountFrom", e.target.value)
-                }
+                value={amountFromFilter}
+                onChange={(e) => setAmountFromFilter(e.target.value)}
                 placeholder="از مبلغ"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
@@ -547,8 +462,8 @@ export default function CashTransactionManager() {
               </label>
               <input
                 type="number"
-                value={filters.amountTo}
-                onChange={(e) => handleFilterChange("amountTo", e.target.value)}
+                value={amountToFilter}
+                onChange={(e) => setAmountToFilter(e.target.value)}
                 placeholder="تا مبلغ"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
@@ -559,10 +474,8 @@ export default function CashTransactionManager() {
               </label>
               <input
                 type="text"
-                value={filters.description}
-                onChange={(e) =>
-                  handleFilterChange("description", e.target.value)
-                }
+                value={descriptionFilter}
+                onChange={(e) => setDescriptionFilter(e.target.value)}
                 placeholder="جستجو در توضیحات"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
@@ -573,11 +486,11 @@ export default function CashTransactionManager() {
                 نوع تراکنش
               </label>
               <select
-                value={filters.type}
-                onChange={(e) => handleFilterChange("type", e.target.value)}
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">همه</option>
+                <option value="all">همه</option>
                 <option value="income">دریافتی</option>
                 <option value="outcome">پرداختی</option>
               </select>
@@ -599,12 +512,12 @@ export default function CashTransactionManager() {
 
         {/* Transactions Table */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          {loading ? (
+          {isLoading ? (
             <div className="p-8 text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
               <p className="mt-4 text-gray-600">در حال دریافت اطلاعات...</p>
             </div>
-          ) : filteredTransactions.length === 0 ? (
+          ) : transactions.length === 0 ? (
             <div className="p-8 text-center">
               <p className="text-gray-500">تراکنشی یافت نشد</p>
             </div>
@@ -620,9 +533,8 @@ export default function CashTransactionManager() {
                       <input
                         type="checkbox"
                         checked={
-                          selectedTransactions.size ===
-                            filteredTransactions.length &&
-                          filteredTransactions.length > 0
+                          selectedTransactions.size === transactions.length &&
+                          transactions.length > 0
                         }
                         onChange={handleSelectAll}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -658,7 +570,7 @@ export default function CashTransactionManager() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredTransactions.map((transaction, idx) => (
+                  {transactions.map((transaction, idx) => (
                     <motion.tr
                       key={transaction._id}
                       initial={{ opacity: 0 }}
@@ -681,7 +593,7 @@ export default function CashTransactionManager() {
                         />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {idx + 1}
+                        {(currentPage - 1) * recordsPerPage + idx + 1}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatAmount(transaction.amount)}
@@ -807,7 +719,74 @@ export default function CashTransactionManager() {
                     </motion.tr>
                   ))}
                 </tbody>
+                <tfoot className="bg-gray-100">
+                  <tr>
+                    <td
+                      colSpan={2}
+                      className="px-6 py-4 text-right text-sm font-bold text-gray-900"
+                    >
+                      جمع کل:
+                    </td>
+                    <td className="px-6 py-4 text-right text-sm font-bold text-gray-900">
+                      {formatAmount(totalAmount)}
+                    </td>
+                    <td colSpan={7}></td>
+                  </tr>
+                </tfoot>
               </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {pagination.totalPages > 1 && (
+            <div className="mt-6 flex flex-col sm:flex-row justify-center items-center gap-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  قبلی
+                </button>
+                <div className="flex gap-1">
+                  {Array.from(
+                    { length: Math.min(5, pagination.totalPages) },
+                    (_, i) => {
+                      let pageNum;
+                      if (pagination.totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= pagination.totalPages - 2) {
+                        pageNum = pagination.totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`px-3 py-2 border rounded-md text-sm ${
+                            currentPage === pageNum
+                              ? "bg-blue-500 text-white border-blue-500"
+                              : "border-gray-300 hover:bg-gray-50"
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    }
+                  )}
+                </div>
+                <button
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === pagination.totalPages}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  بعدی
+                </button>
+              </div>
             </div>
           )}
         </div>

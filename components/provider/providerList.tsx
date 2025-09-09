@@ -1,18 +1,33 @@
 "use client";
-import React, { useState } from "react";
+import React from "react";
 import DynamicTable from "@/components/global/DynamicTable";
-import TableFilters, { FilterConfig } from "@/components/global/TableFilters";
 import { TableColumn } from "@/types/tables";
 
 const columns: TableColumn[] = [
-  { key: "name", label: "نام", sortable: true },
-  { key: "code", label: "کد", sortable: true },
+  {
+    key: "name",
+    label: "نام",
+    sortable: true,
+    filterable: true,
+    filterType: "text",
+    placeholder: "جستجو نام",
+  },
+  {
+    key: "code",
+    label: "کد",
+    sortable: true,
+    filterable: true,
+    filterType: "text",
+    placeholder: "جستجو کد",
+  },
   { key: "info", label: "اطلاعات", sortable: false },
   {
     key: "createdAt",
     label: "تاریخ ایجاد",
     sortable: true,
     type: "date",
+    filterable: true,
+    filterType: "dateRange",
   },
   {
     key: "updatedAt",
@@ -23,47 +38,21 @@ const columns: TableColumn[] = [
 ];
 
 const ProviderList: React.FC = () => {
-  const [filters, setFilters] = useState<Record<string, string | number>>({});
-
-  const filterConfig: FilterConfig = {
-    fields: [
-      {
-        key: "name",
-        label: "نام تامین کننده",
-        type: "text",
-        placeholder: "جستجو در نام تامین کننده..."
-      },
-      {
-        key: "code",
-        label: "کد تامین کننده",
-        type: "text",
-        placeholder: "جستجو در کد تامین کننده..."
-      },
-      {
-        key: "createdAt",
-        label: "تاریخ ایجاد",
-        type: "dateRange"
-      }
-    ],
-    onFiltersChange: setFilters
-  };
-
   return (
-    <div className="container mx-auto py-8" dir="rtl">
-      <TableFilters config={filterConfig} />
+    <div className="p-6">
       <DynamicTable
         config={{
           title: "لیست تامین‌کنندگان",
           endpoint: "/api/providerApi",
-          filters,
-          itemsPerPage: 10,
           columns: columns,
+          enableFilters: true,
+
           actions: {
             view: true,
             edit: true,
-            delete: true
+            delete: true,
           },
-          responseHandler: (response) => response.providers || []
+          responseHandler: (response) => response.providers || [],
         }}
       />
     </div>

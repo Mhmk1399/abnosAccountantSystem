@@ -15,21 +15,38 @@ export default function Rollcall() {
     title: "",
     type: "view",
   });
-  const [, setStaffs] = useState([]);
+  const [data, setData] = useState([]);
 
-  const getStaffs = async () => {
-    const response = await fetch("/api/staff");
-    const data = await response.json();
-    setStaffs(data.staffs || []);
+  const fetchData = async () => {
+    const [staffRes, rollcallRes] = await Promise.all([
+      fetch("/api/staff"),
+      fetch("/api/rollcall")
+    ]);
+    const staffData = await staffRes.json();
+    const rollcallData = await rollcallRes.json();
+    
+    const combined = (staffData.staffs || []).map(staff => {
+      const rollcall = (rollcallData.rollcalls || []).find(r => r.staff._id === staff._id);
+      return {
+        _id: rollcall?._id || staff._id,
+        staff: { _id: staff._id, name: staff.name },
+        date: rollcall?.date,
+        status: rollcall?.status,
+        entranceTime: rollcall?.entranceTime,
+        exitTime: rollcall?.exitTime,
+        description: rollcall?.description
+      };
+    });
+    setData(combined);
   };
 
   useEffect(() => {
-    getStaffs();
+    fetchData();
   }, []);
 
   const tableRef = useRef<{ refreshData: () => void }>(null);
 
-  const handleView = (rollcall: Rollcall) => {
+  const handleView = (rollcall: CombinedStaffRollcall) => {
     setSelectedRollcall(rollcall);
     setModalConfig({
       title: `مشاهده اطلاعات حضور و غیاب`,
@@ -63,7 +80,7 @@ export default function Rollcall() {
     setIsModalOpen(true);
   };
 
-  const handleEdit = (rollcall: Rollcall) => {
+  const handleEdit = (rollcall: CombinedStaffRollcall) => {
     // Create a modified rollcall object with staff ID extracted
 
     setSelectedRollcall(rollcall);
@@ -111,6 +128,7 @@ export default function Rollcall() {
         toast.success("اطلاعات حضور و غیاب با موفقیت بروزرسانی شد");
         setIsModalOpen(false);
         setSelectedRollcall(null);
+        fetchData();
         if (tableRef.current) tableRef.current.refreshData();
       },
       onError: (error) => {
@@ -124,7 +142,7 @@ export default function Rollcall() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (rollcall: Rollcall) => {
+  const handleDelete = (rollcall: CombinedStaffRollcall) => {
     setSelectedRollcall(rollcall);
     setModalConfig({
       title: `حذف رکورد حضور و غیاب`,
@@ -135,6 +153,7 @@ export default function Rollcall() {
         toast.success("رکورد حضور و غیاب با موفقیت حذف شد");
         setIsModalOpen(false);
         setSelectedRollcall(null);
+        fetchData();
         if (tableRef.current) tableRef.current.refreshData();
       },
       onError: (error) => {
@@ -152,6 +171,7 @@ export default function Rollcall() {
     title: "مدیریت حضور و غیاب",
     description: "لیست حضور و غیاب کارمندان",
     endpoint: "/api/rollcall",
+    responseHandler: () => data,
     columns: [
       {
         key: "staff.name",
@@ -163,12 +183,14 @@ export default function Rollcall() {
         label: "تاریخ",
         type: "date",
         sortable: true,
+        render: (value) => value ? new Date(value as string).toLocaleDateString("fa-IR") : "--"
       },
       {
         key: "status",
         label: "وضعیت",
         sortable: true,
         render: (value) => {
+          if (!value) return "--";
           switch (value) {
             case "present":
               return "حاضر";
@@ -177,7 +199,7 @@ export default function Rollcall() {
             case "late":
               return "تاخیر";
             default:
-              return value;
+              return "--";
           }
         },
       },
@@ -185,11 +207,13 @@ export default function Rollcall() {
         key: "entranceTime",
         label: "زمان ورود",
         type: "text",
+        render: (value) => value || "--"
       },
       {
         key: "exitTime",
         label: "زمان خروج",
         type: "text",
+        render: (value) => value || "--"
       },
     ],
     actions: { view: true, edit: true, delete: true },
@@ -197,6 +221,8 @@ export default function Rollcall() {
     onEdit: handleEdit,
     onDelete: handleDelete,
   };
+
+
 
   return (
     <div className="container mx-auto py-8" dir="rtl">

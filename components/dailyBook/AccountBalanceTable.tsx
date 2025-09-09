@@ -93,7 +93,12 @@ const AccountBalanceTable: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAccountGroup, setSelectedAccountGroup] = useState("");
+  const [selectedTotalAccount, setSelectedTotalAccount] = useState("");
+  const [selectedFixedAccount, setSelectedFixedAccount] = useState("");
+  const [selectedDetailedAccount, setSelectedDetailedAccount] = useState("");
   const [balanceType, setBalanceType] = useState<string>("all");
+  const [minAmount, setMinAmount] = useState<string>("");
+  const [maxAmount, setMaxAmount] = useState<string>("");
   const [groupedBalances, setGroupedBalances] = useState<GroupedBalance[]>([]);
   const [loading, setLoading] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -118,20 +123,31 @@ const AccountBalanceTable: React.FC = () => {
     }
   };
 
-  const groupBalancesByHierarchy = (balances: BalanceData[]): GroupedBalance[] => {
-    const groupMap = new Map<string, {
-      group: Account;
-      balance: Balance;
-      totalAccounts: Map<string, {
-        account: Account;
+  const groupBalancesByHierarchy = (
+    balances: BalanceData[]
+  ): GroupedBalance[] => {
+    const groupMap = new Map<
+      string,
+      {
+        group: Account;
         balance: Balance;
-        fixedAccounts: Map<string, {
-          account: Account;
-          balance: Balance;
-          detailedAccounts: AccountBalance[];
-        }>;
-      }>;
-    }>();
+        totalAccounts: Map<
+          string,
+          {
+            account: Account;
+            balance: Balance;
+            fixedAccounts: Map<
+              string,
+              {
+                account: Account;
+                balance: Balance;
+                detailedAccounts: AccountBalance[];
+              }
+            >;
+          }
+        >;
+      }
+    >();
 
     // Process groups
     balances.forEach((balance) => {
@@ -166,8 +182,9 @@ const AccountBalanceTable: React.FC = () => {
       if (balance.accountLevel === "fixed") {
         const { accountRef, totalDebit, totalCredit, net } = balance;
         const totalId = accountRef.totalAccount;
-        const groupId = accountRef.accountGroup || findGroupIdForTotal(balances, totalId);
-        
+        const groupId =
+          accountRef.accountGroup || findGroupIdForTotal(balances, totalId);
+
         if (groupId && totalId && groupMap.has(groupId)) {
           const group = groupMap.get(groupId)!;
           if (group.totalAccounts.has(totalId)) {
@@ -196,7 +213,9 @@ const AccountBalanceTable: React.FC = () => {
         if (fixedBalance) {
           const fixedId = fixedBalance.accountRef._id;
           const totalId = fixedBalance.accountRef.totalAccount;
-          const groupId = fixedBalance.accountRef.accountGroup || findGroupIdForTotal(balances, totalId);
+          const groupId =
+            fixedBalance.accountRef.accountGroup ||
+            findGroupIdForTotal(balances, totalId);
 
           if (groupId && totalId && groupMap.has(groupId)) {
             const group = groupMap.get(groupId)!;
@@ -205,7 +224,12 @@ const AccountBalanceTable: React.FC = () => {
               if (totalAccount.fixedAccounts.has(fixedId)) {
                 const fixedAccount = totalAccount.fixedAccounts.get(fixedId)!;
                 fixedAccount.detailedAccounts.push({
-                  detailedAccount: { ...accountRef, totalDebit, totalCredit, net },
+                  detailedAccount: {
+                    ...accountRef,
+                    totalDebit,
+                    totalCredit,
+                    net,
+                  },
                 });
               }
             }
@@ -221,16 +245,21 @@ const AccountBalanceTable: React.FC = () => {
       totalAccounts: Array.from(group.totalAccounts.values()).map((total) => ({
         account: total.account,
         balance: total.balance,
-        fixedAccounts: Array.from(total.fixedAccounts.values()).map((fixed) => ({
-          account: fixed.account,
-          balance: fixed.balance,
-          detailedAccounts: fixed.detailedAccounts,
-        })),
+        fixedAccounts: Array.from(total.fixedAccounts.values()).map(
+          (fixed) => ({
+            account: fixed.account,
+            balance: fixed.balance,
+            detailedAccounts: fixed.detailedAccounts,
+          })
+        ),
       })),
     }));
   };
 
-  const findGroupIdForTotal = (balances: BalanceData[], totalId: string | undefined): string | undefined => {
+  const findGroupIdForTotal = (
+    balances: BalanceData[],
+    totalId: string | undefined
+  ): string | undefined => {
     if (!totalId) return undefined;
     const totalBalance = balances.find(
       (b) => b.accountLevel === "total" && b.accountRef._id === totalId
@@ -238,40 +267,84 @@ const AccountBalanceTable: React.FC = () => {
     return totalBalance?.accountRef.accountGroup;
   };
 
-  const filteredGroupedBalances = groupedBalances.filter((group) => {
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase();
-      const hasMatch =
-        group.group.name.toLowerCase().includes(searchLower) ||
-        group.totalAccounts.some(
-          (total) =>
-            total.account.name.toLowerCase().includes(searchLower) ||
-            total.fixedAccounts.some(
-              (fixed) =>
-                fixed.account.name.toLowerCase().includes(searchLower) ||
-                fixed.detailedAccounts.some((detailed) =>
-                  detailed.detailedAccount.name
-                    .toLowerCase()
-                    .includes(searchLower)
-                )
-            )
-        );
-      if (!hasMatch) return false;
-    }
+  const filteredGroupedBalances = groupedBalances
+    .map((group) => {
+      const filteredTotalAccounts = group.totalAccounts
+        .map((total) => {
+          const filteredFixedAccounts = total.fixedAccounts
+            .map((fixed) => {
+              const filteredDetailedAccounts = fixed.detailedAccounts.filter(
+                (detailed) => {
+                  if (
+                    selectedDetailedAccount &&
+                    detailed.detailedAccount._id !== selectedDetailedAccount
+                  )
+                    return false;
+                  return true;
+                }
+              );
+              return { ...fixed, detailedAccounts: filteredDetailedAccounts };
+            })
+            .filter((fixed) => {
+              if (
+                selectedFixedAccount &&
+                fixed.account._id !== selectedFixedAccount
+              )
+                return false;
+              return (
+                fixed.detailedAccounts.length > 0 || !selectedDetailedAccount
+              );
+            });
 
-    if (selectedAccountGroup && group.group._id !== selectedAccountGroup) {
-      return false;
-    }
+          return { ...total, fixedAccounts: filteredFixedAccounts };
+        })
+        .filter((total) => {
+          if (
+            selectedTotalAccount &&
+            total.account._id !== selectedTotalAccount
+          )
+            return false;
 
-    if (balanceType !== "all") {
-      const net = group.balance.net;
-      if (balanceType === "debit" && net <= 0) return false;
-      if (balanceType === "credit" && net >= 0) return false;
-      if (balanceType === "balanced" && net !== 0) return false;
-    }
+          if (searchTerm) {
+            const searchLower = searchTerm.toLowerCase();
+            const hasMatch =
+              total.account.name.toLowerCase().includes(searchLower) ||
+              total.fixedAccounts.some(
+                (fixed) =>
+                  fixed.account.name.toLowerCase().includes(searchLower) ||
+                  fixed.detailedAccounts.some((detailed) =>
+                    detailed.detailedAccount.name
+                      .toLowerCase()
+                      .includes(searchLower)
+                  )
+              );
+            if (!hasMatch) return false;
+          }
 
-    return true;
-  });
+          if (balanceType !== "all") {
+            const net = total.balance.net;
+            if (balanceType === "debit" && net <= 0) return false;
+            if (balanceType === "credit" && net >= 0) return false;
+            if (balanceType === "balanced" && net !== 0) return false;
+          }
+
+          const absNet = Math.abs(total.balance.net);
+          if (minAmount && absNet < parseFloat(minAmount)) return false;
+          if (maxAmount && absNet > parseFloat(maxAmount)) return false;
+
+          return (
+            total.fixedAccounts.length > 0 ||
+            (!selectedFixedAccount && !selectedDetailedAccount)
+          );
+        });
+
+      return { ...group, totalAccounts: filteredTotalAccounts };
+    })
+    .filter((group) => {
+      if (selectedAccountGroup && group.group._id !== selectedAccountGroup)
+        return false;
+      return group.totalAccounts.length > 0;
+    });
 
   const calculateSummary = () => {
     return filteredGroupedBalances.reduce(
@@ -442,8 +515,8 @@ const AccountBalanceTable: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-gray-50 rounded-lg p-4 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="bg-gray-50 rounded-lg p-4 mb-6 w-full ">
+        <div className="grid grid-cols-1  w-full justify-center items-center lg:grid-cols-8 gap-2">
           <div className="relative">
             <FaSearch className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
@@ -451,20 +524,60 @@ const AccountBalanceTable: React.FC = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="جستجو در حسابها..."
+              placeholder="جستجو  ..."
             />
           </div>
+
           <select
-            value={selectedAccountGroup}
-            onChange={(e) => setSelectedAccountGroup(e.target.value)}
+            value={selectedTotalAccount}
+            onChange={(e) => setSelectedTotalAccount(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
-            <option value="">همه گروهها</option>
-            {groupedBalances.map((group) => (
-              <option key={group.group._id} value={group.group._id}>
-                {group.group.name}
-              </option>
-            ))}
+            <option value=""> حسابهای کل</option>
+            {groupedBalances.flatMap((group) =>
+              group.totalAccounts.map((total) => (
+                <option key={total.account._id} value={total.account._id}>
+                  {total.account.name}
+                </option>
+              ))
+            )}
+          </select>
+          <select
+            value={selectedFixedAccount}
+            onChange={(e) => setSelectedFixedAccount(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value=""> حسابهای معین</option>
+            {groupedBalances.flatMap((group) =>
+              group.totalAccounts.flatMap((total) =>
+                total.fixedAccounts.map((fixed) => (
+                  <option key={fixed.account._id} value={fixed.account._id}>
+                    {fixed.account.name}
+                  </option>
+                ))
+              )
+            )}
+          </select>
+          <select
+            value={selectedDetailedAccount}
+            onChange={(e) => setSelectedDetailedAccount(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            <option value=""> حسابهای تفصیلی</option>
+            {groupedBalances.flatMap((group) =>
+              group.totalAccounts.flatMap((total) =>
+                total.fixedAccounts.flatMap((fixed) =>
+                  fixed.detailedAccounts.map((detailed) => (
+                    <option
+                      key={detailed.detailedAccount._id}
+                      value={detailed.detailedAccount._id}
+                    >
+                      {detailed.detailedAccount.name}
+                    </option>
+                  ))
+                )
+              )
+            )}
           </select>
           <select
             value={balanceType}
@@ -476,10 +589,38 @@ const AccountBalanceTable: React.FC = () => {
             <option value="credit">بستانکار</option>
             <option value="balanced">متعادل</option>
           </select>
-        </div>
-        <div className="mt-3 text-sm text-gray-600">
-          نمایش {filteredGroupedBalances.length} از {groupedBalances.length}{" "}
-          گروه حساب
+
+          <input
+            type="number"
+            value={minAmount}
+            onChange={(e) => setMinAmount(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="حداقل مبلغ"
+          />
+          <input
+            type="number"
+            value={maxAmount}
+            onChange={(e) => setMaxAmount(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            placeholder="حداکثر مبلغ"
+          />
+          <div className=" ">
+            <button
+              onClick={() => {
+                setSearchTerm("");
+                setSelectedAccountGroup("");
+                setSelectedTotalAccount("");
+                setSelectedFixedAccount("");
+                setSelectedDetailedAccount("");
+                setBalanceType("all");
+                setMinAmount("");
+                setMaxAmount("");
+              }}
+              className="px-12 py-3 text-xs cursor-pointer font-bold text-nowrap border border-red-500 text-red-500 rounded hover:bg-red-600 hover:text-white transition-colors"
+            >
+              پاک کردن فیلترها
+            </button>
+          </div>
         </div>
       </div>
 
@@ -504,93 +645,113 @@ const AccountBalanceTable: React.FC = () => {
               هیچ حسابی یافت نشد
             </div>
           ) : (
-            filteredGroupedBalances.map((groupBalance) => (
-              <AccountGroupRow
-                key={groupBalance.group._id}
-                groupBalance={groupBalance}
-                formatAmount={formatAmount}
-                getBalanceInfo={getBalanceInfo}
-                isExpanded={expandedGroups.has(groupBalance.group._id)}
-                onToggle={() => toggleGroup(groupBalance.group._id)}
-              />
-            ))
+            <>
+              {filteredGroupedBalances.flatMap((groupBalance) =>
+                groupBalance.totalAccounts.map((totalAccount, index) => (
+                  <TotalAccountRow
+                    key={
+                      totalAccount.account._id ||
+                      `${groupBalance.group._id}-${index}`
+                    }
+                    totalAccount={totalAccount}
+                    formatAmount={formatAmount}
+                    getBalanceInfo={getBalanceInfo}
+                  />
+                ))
+              )}
+              {/* Summary Row */}
+              <div className="grid grid-cols-12 gap-4 p-4 bg-gray-100 border-t-2 border-gray-300 font-bold">
+                <div className="col-span-1"></div>
+                <div className="col-span-4 text-gray-800">جمع کل:</div>
+                <div className="col-span-2 text-center text-red-600">
+                  {formatAmount(
+                    filteredGroupedBalances.reduce(
+                      (sum, group) =>
+                        sum +
+                        group.totalAccounts.reduce(
+                          (totalSum, total) => totalSum + total.balance.totalDebit,
+                          0
+                        ),
+                      0
+                    )
+                  )}
+                </div>
+                <div className="col-span-2 text-center text-green-600">
+                  {formatAmount(
+                    filteredGroupedBalances.reduce(
+                      (sum, group) =>
+                        sum +
+                        group.totalAccounts.reduce(
+                          (totalSum, total) => totalSum + total.balance.totalCredit,
+                          0
+                        ),
+                      0
+                    )
+                  )}
+                </div>
+                <div className="col-span-2 text-center text-gray-800">
+                  {formatAmount(
+                    Math.abs(
+                      filteredGroupedBalances.reduce(
+                        (sum, group) =>
+                          sum +
+                          group.totalAccounts.reduce(
+                            (totalSum, total) => totalSum + total.balance.net,
+                            0
+                          ),
+                        0
+                      )
+                    )
+                  )}
+                </div>
+                <div className="col-span-1 text-center">
+                  <span
+                    className={`px-2 py-1 rounded text-xs ${
+                      getBalanceInfo(
+                        filteredGroupedBalances.reduce(
+                          (sum, group) =>
+                            sum +
+                            group.totalAccounts.reduce(
+                              (totalSum, total) => totalSum + total.balance.net,
+                              0
+                            ),
+                          0
+                        )
+                      ).bg
+                    } ${
+                      getBalanceInfo(
+                        filteredGroupedBalances.reduce(
+                          (sum, group) =>
+                            sum +
+                            group.totalAccounts.reduce(
+                              (totalSum, total) => totalSum + total.balance.net,
+                              0
+                            ),
+                          0
+                        )
+                      ).color
+                    }`}
+                  >
+                    {getBalanceInfo(
+                      filteredGroupedBalances.reduce(
+                        (sum, group) =>
+                          sum +
+                          group.totalAccounts.reduce(
+                            (totalSum, total) => totalSum + total.balance.net,
+                            0
+                          ),
+                        0
+                      )
+                    ).text}
+                  </span>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>
     </div>
-  );
-};
-
-// Account Group Row Component
-const AccountGroupRow = ({
-  groupBalance,
-  formatAmount,
-  getBalanceInfo,
-  isExpanded,
-  onToggle,
-}: {
-  groupBalance: GroupedBalance;
-  formatAmount: (amount: number) => string;
-  getBalanceInfo: (net: number) => { text: string; color: string; bg: string };
-  isExpanded: boolean;
-  onToggle: () => void;
-}) => {
-  const balanceInfo = getBalanceInfo(groupBalance.balance.net);
-
-  return (
-    <>
-      {/* Group Header */}
-      <div
-        className="grid grid-cols-12 gap-4 p-4 hover:bg-gray-50 cursor-pointer transition-colors bg-blue-50 border-r-4 border-blue-500"
-        onClick={onToggle}
-      >
-        <div className="col-span-1 flex items-center">
-          {isExpanded ? (
-            <FaMinus className="text-blue-600" />
-          ) : (
-            <FaPlus className="text-blue-600" />
-          )}
-        </div>
-        <div className="col-span-4 font-semibold text-gray-800 flex items-center">
-          {groupBalance.group.name}
-          <span className="mr-2 bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
-            {groupBalance.totalAccounts.length} حساب کل
-          </span>
-        </div>
-        <div className="col-span-2 text-center text-red-600 font-medium">
-          {formatAmount(groupBalance.balance.totalDebit)}
-        </div>
-        <div className="col-span-2 text-center text-green-600 font-medium">
-          {formatAmount(groupBalance.balance.totalCredit)}
-        </div>
-        <div className="col-span-2 text-center font-bold">
-          <span className={balanceInfo.color}>
-            {formatAmount(groupBalance.balance.net)}
-          </span>
-        </div>
-        <div className="col-span-1 text-center">
-          <span
-            className={`px-2 py-1 rounded text-xs font-medium ${balanceInfo.bg} ${balanceInfo.color}`}
-          >
-            {balanceInfo.text}
-          </span>
-        </div>
-      </div>
-
-      {/* Expanded Content */}
-      {isExpanded && (
-        <div className="bg-gray-50">
-          {groupBalance.totalAccounts.map((totalAccount, index) => (
-            <TotalAccountRow
-              key={totalAccount.account._id || index}
-              totalAccount={totalAccount}
-              formatAmount={formatAmount}
-              getBalanceInfo={getBalanceInfo}
-            />
-          ))}
-        </div>
-      )}
-    </>
+    
   );
 };
 
@@ -722,39 +883,43 @@ const FixedAccountRow = ({
       {/* Detailed Accounts */}
       {isExpanded && (
         <div className="bg-gray-50">
-          {fixedAccount.detailedAccounts.map((detailed: AccountBalance, index: number) => (
-            <div
-              key={detailed.detailedAccount._id || index}
-              className="grid grid-cols-12 gap-4 p-4 hover:bg-white transition-colors border-r-4 border-gray-300"
-            >
-              <div className="col-span-1"></div>
-              <div className="col-span-4 text-gray-600 pr-12">
-                {detailed.detailedAccount.name}
+          {fixedAccount.detailedAccounts.map(
+            (detailed: AccountBalance, index: number) => (
+              <div
+                key={detailed.detailedAccount._id || index}
+                className="grid grid-cols-12 gap-4 p-4 hover:bg-white transition-colors border-r-4 border-gray-300"
+              >
+                <div className="col-span-1"></div>
+                <div className="col-span-4 text-gray-600 pr-12">
+                  {detailed.detailedAccount.name}
+                </div>
+                <div className="col-span-2 text-center text-red-600">
+                  {formatAmount(detailed.detailedAccount.totalDebit)}
+                </div>
+                <div className="col-span-2 text-center text-green-600">
+                  {formatAmount(detailed.detailedAccount.totalCredit)}
+                </div>
+                <div className="col-span-2 text-center font-medium">
+                  <span
+                    className={
+                      getBalanceInfo(detailed.detailedAccount.net).color
+                    }
+                  >
+                    {formatAmount(detailed.detailedAccount.net)}
+                  </span>
+                </div>
+                <div className="col-span-1 text-center">
+                  <span
+                    className={`px-2 py-1 rounded text-xs ${
+                      getBalanceInfo(detailed.detailedAccount.net).bg
+                    } ${getBalanceInfo(detailed.detailedAccount.net).color}`}
+                  >
+                    {getBalanceInfo(detailed.detailedAccount.net).text}
+                  </span>
+                </div>
               </div>
-              <div className="col-span-2 text-center text-red-600">
-                {formatAmount(detailed.detailedAccount.totalDebit)}
-              </div>
-              <div className="col-span-2 text-center text-green-600">
-                {formatAmount(detailed.detailedAccount.totalCredit)}
-              </div>
-              <div className="col-span-2 text-center font-medium">
-                <span
-                  className={getBalanceInfo(detailed.detailedAccount.net).color}
-                >
-                  {formatAmount(detailed.detailedAccount.net)}
-                </span>
-              </div>
-              <div className="col-span-1 text-center">
-                <span
-                  className={`px-2 py-1 rounded text-xs ${
-                    getBalanceInfo(detailed.detailedAccount.net).bg
-                  } ${getBalanceInfo(detailed.detailedAccount.net).color}`}
-                >
-                  {getBalanceInfo(detailed.detailedAccount.net).text}
-                </span>
-              </div>
-            </div>
-          ))}
+            )
+          )}
         </div>
       )}
     </>

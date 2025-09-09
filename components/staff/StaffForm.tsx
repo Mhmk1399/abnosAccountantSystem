@@ -139,9 +139,13 @@ const StaffForm = () => {
       {
         name: "position",
         label: "سمت",
-        type: "text",
+        type: "select",
         required: true,
-        placeholder: "سمت کارمند را وارد کنید",
+        options: [
+          { value: "factory", label: "کارگر" },
+          { value: "office", label: "اداری" },
+          { value: "management", label: "مدیریت" },
+        ],
       },
       {
         name: "workplace",

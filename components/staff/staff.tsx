@@ -159,9 +159,13 @@ export default function Staff() {
         {
           key: "position",
           label: "سمت",
-          type: "text",
+          type: "select",
           required: true,
-          placeholder: "سمت کارمند را وارد کنید",
+          options: [
+            { value: "factory", label: "کارخانه" },
+            { value: "office", label: "دفتری" },
+            { value: "management", label: "مدیریت" },
+          ],
         },
         {
           key: "workplace",

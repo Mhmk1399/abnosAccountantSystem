@@ -7,6 +7,111 @@ export interface CustomerType {
   createdAt: string;
   updatedAt: string;
 }
+export interface Check {
+  _id: string;
+  checkNumber: number;
+  seryNumber: number;
+  fromBank?: Array<{
+    shobe?: string;
+    name?: string;
+    accountNumber?: string;
+    _id?: string;
+  }>;
+  status:
+    | "nazeSandogh"
+    | "darJaryanVosool"
+    | "vosoolShode"
+    | "bargashti"
+    | "enteghalDadeShode";
+  inboxStatus?:
+    | "darJaryanVosool"
+    | "vosoolShode"
+    | "bargashti"
+    | "enteghalDadeShode"
+    | null;
+  otherSideBank?: Array<{
+    name: string;
+    owner: string;
+    accountNumber: string;
+    _id?: string;
+  }>;
+  toBank:
+    | string
+    | {
+        _id?: string;
+        name: string;
+        description?: string;
+        branchName?: string;
+        branchCode?: string;
+        accountNumber?: string;
+        ownerName?: string;
+        createdAt?: string;
+        updatedAt?: string;
+        __v?: number;
+        detailedAccount?: string;
+      };
+  amount: number;
+  dueDate: string;
+  description?: string;
+  documentNumber?: string;
+  paidBy?: Array<{
+    balance?: {
+      totalDebit: number;
+      totalCredit: number;
+      net: number;
+    };
+    _id: string;
+    name: string;
+    description?: string;
+    code: string;
+    status?: string;
+    type?: string;
+    customer?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    __v?: number;
+    fiscalType?: string;
+  }>;
+  payTo?: Array<{
+    balance?: {
+      totalDebit: number;
+      totalCredit: number;
+      net: number;
+    };
+    _id: string;
+    name: string;
+    description?: string;
+    code: string;
+    status?: string;
+    type?: string;
+    customer?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    __v?: number;
+    fiscalType?: string;
+  }>;
+  receiverName?: string;
+  senderName?: string;
+  type: "income" | "outcome";
+  createdAt: string;
+  updatedAt?: string;
+}
+export interface Bank {
+  _id: string;
+  name: string;
+  description: string;
+  branchName: string;
+  branchCode: string;
+  accountNumber: string;
+  ownerName: string;
+  detailedAccount?: {
+    _id: string;
+    name: string;
+    code: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
 export interface CustomerTypeData {
   _id: string;
   name: string;
@@ -1266,4 +1371,84 @@ export interface PaginationData {
   itemsPerPage: number;
   hasNextPage: boolean;
   hasPrevPage: boolean;
+}
+
+export interface TransferTransaction {
+  _id: string;
+  ourBank:
+    | {
+        _id: string;
+        name: string;
+        branchName: string;
+        accountNumber: string;
+      }
+    | string;
+  paidBy:
+    | {
+        _id: string;
+        name: string;
+        code: string;
+      }
+    | string;
+  payTo:
+    | {
+        _id: string;
+        name: string;
+        code: string;
+      }
+    | string;
+  customerBank?: string;
+  transferReference: string;
+  transferDate: string;
+  type: "income" | "outcome";
+  amount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CashTransaction {
+  _id: string;
+  amount: number;
+  transactionDate: string;
+  description?: string;
+  documentNumber?: string;
+  documentDate?: string;
+  paidBy: { _id: string; name: string; code: string };
+  payTo: { _id: string; name: string; code: string };
+  type: "income" | "outcome";
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ---------------------------- GroupDetailAccount ----------------------------------
+
+interface Balance {
+  totalDebit: number;
+  totalCredit: number;
+  net: number;
+}
+interface DetailedAccount {
+  _id: string;
+  name: string;
+  description: string;
+  code: string;
+  status: "active" | "inactive";
+  type: "debit" | "credit";
+  customer?: string;
+  fiscalType?: string;
+  balance: Balance;
+  createdAt: string; // ISO date string
+  updatedAt: string; // ISO date string
+  __v: number;
+}
+export interface GroupDetailAccount {
+  _id: string;
+  name: string;
+  flag: string;
+  description: string;
+  detailedAccounts: DetailedAccount[];
+  status: "active" | "inactive";
+  createdAt: string; // ISO date string
+  updatedAt: string; // ISO date string
+  __v: number;
 }

@@ -119,14 +119,25 @@ export const calculateStaffSalary = async (
   });
   const totalDeficits = deficits.reduce((sum, d) => sum + d.amount, 0);
 
+  // Get month working days for proration
+  const monthWorkingDays =  monthInfo.workingDays
+  console.log( monthInfo.workingDays, "monthWorkingDays");
   // Calculate salary components
   const dailyBaseSalary = staff.baseSalary || salaryLaws.baseSalary;
   const baseSalary = workingDays * dailyBaseSalary; //salary without calculating extra pay
-  const housingAllowance = salaryLaws.housingAllowance; // house allowence
-  const workerVoucher = salaryLaws.workerVoucher; // bon
+  
+  // Prorate allowances based on working days
+  const housingAllowance = workingDays >= monthWorkingDays 
+    ? salaryLaws.housingAllowance 
+    : (salaryLaws.housingAllowance / monthWorkingDays) * workingDays;
+    
+  const workerVoucher = workingDays >= monthWorkingDays 
+    ? salaryLaws.workerVoucher 
+    : (salaryLaws.workerVoucher / monthWorkingDays) * workingDays;
 
-  const childAllowances =
-    Number(salaryLaws.childAllowance) * Number(staff.childrenCounts); //calculate child allowance for each
+  const childAllowances = workingDays >= monthWorkingDays 
+    ? Number(salaryLaws.childAllowance) * Number(staff.childrenCounts)
+    : (Number(salaryLaws.childAllowance) * Number(staff.childrenCounts) / monthWorkingDays) * workingDays;
 
   const seniority = staff.workExperience ? salaryLaws.seniorityPay : 0; //mazaya personel
   let extraWorkPay = 0;
@@ -146,7 +157,9 @@ export const calculateStaffSalary = async (
   // const overtimePay = overtimeHours * salaryLaws.overtimeRate;
   let MarriageAllowance;
   if (staff.ismaried) {
-    MarriageAllowance = salaryLaws.MarriageAllowance;
+    MarriageAllowance = workingDays >= monthWorkingDays 
+      ? salaryLaws.MarriageAllowance 
+      : (salaryLaws.MarriageAllowance / monthWorkingDays) * workingDays;
   } else {
     MarriageAllowance = 0;
   }

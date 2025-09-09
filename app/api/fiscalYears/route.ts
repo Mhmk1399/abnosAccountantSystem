@@ -1,54 +1,93 @@
-import data from "@/lib/data";
+import connect from "@/lib/data";
 import { NextResponse, NextRequest } from "next/server";
 import FiscalYear from "@/models/fiscalYear";
 
-// GET: Retrieve all fiscal years with filters and pagination
+// GET: Retrieve all fiscal years with pagination and filtering
 export const GET = async (req: NextRequest) => {
-  await data();
+  await connect();
   try {
     const { searchParams } = new URL(req.url);
     
-    // Build filter query
-    const filter: Record<string, unknown> = {};
-    
-    // Handle name filter
+    // Pagination parameters
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const skip = (page - 1) * limit;
+
+    // Filter parameters
+    const startDateFrom = searchParams.get('startDateFrom');
+    const startDateTo = searchParams.get('startDateTo');
+    const endDateFrom = searchParams.get('endDateFrom');
+    const endDateTo = searchParams.get('endDateTo');
+    const taxRateMin = searchParams.get('taxRateMin');
+    const taxRateMax = searchParams.get('taxRateMax');
     const name = searchParams.get('name');
-    if (name) {
-      filter.name = { $regex: name, $options: 'i' }; // Case-insensitive search
-    }
-    
-    // Handle isActive filter
     const isActive = searchParams.get('isActive');
-    if (isActive === 'true' || isActive === 'false') {
+
+    // Build filter object
+    const filter: any = {};
+
+    // Name filter (case-insensitive partial match)
+    if (name) {
+      filter.name = { $regex: name, $options: 'i' };
+    }
+
+    // Start date range filter
+    if (startDateFrom || startDateTo) {
+      filter.startDate = {};
+      if (startDateFrom) {
+        const fromDate = new Date(startDateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        filter.startDate.$gte = fromDate;
+      }
+      if (startDateTo) {
+        const toDate = new Date(startDateTo);
+        toDate.setHours(23, 59, 59, 999);
+        filter.startDate.$lte = toDate;
+      }
+    }
+
+    // End date range filter
+    if (endDateFrom || endDateTo) {
+      filter.endDate = {};
+      if (endDateFrom) {
+        const fromDate = new Date(endDateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        filter.endDate.$gte = fromDate;
+      }
+      if (endDateTo) {
+        const toDate = new Date(endDateTo);
+        toDate.setHours(23, 59, 59, 999);
+        filter.endDate.$lte = toDate;
+      }
+    }
+
+    // Tax rate range filter
+    if (taxRateMin || taxRateMax) {
+      filter.taxRate = {};
+      if (taxRateMin) {
+        filter.taxRate.$gte = parseFloat(taxRateMin);
+      }
+      if (taxRateMax) {
+        filter.taxRate.$lte = parseFloat(taxRateMax);
+      }
+    }
+
+    // Active status filter
+    if (isActive !== null && isActive !== undefined && isActive !== '') {
       filter.isActive = isActive === 'true';
     }
-    
-    // Handle date range filters
-    const startDateFrom = searchParams.get('startDate_from');
-    const startDateTo = searchParams.get('startDate_to');
-    if (startDateFrom || startDateTo) {
-      const dateFilter: { $gte?: Date; $lte?: Date } = {};
-      if (startDateFrom) dateFilter.$gte = new Date(startDateFrom);
-      if (startDateTo) dateFilter.$lte = new Date(startDateTo);
-      filter.startDate = dateFilter;
-    }
-    
-    // Pagination - with validation
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
-    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10')));
-    const skip = (page - 1) * limit;
-    
+
     // Get total count for pagination
     const totalItems = await FiscalYear.countDocuments(filter);
     const totalPages = Math.ceil(totalItems / limit);
-    
-    // Fetch data with filters and pagination
+
+    // Fetch filtered and paginated data
     const fiscalYears = await FiscalYear.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
-    
-    // Build pagination info
+
+    // Pagination info
     const pagination = {
       currentPage: page,
       totalPages,
@@ -57,9 +96,9 @@ export const GET = async (req: NextRequest) => {
       hasNextPage: page < totalPages,
       hasPrevPage: page > 1
     };
-    
+
     return NextResponse.json({ 
-      fiscalYears,
+      data: fiscalYears,
       pagination 
     });
   } catch (error) {
@@ -73,7 +112,7 @@ export const GET = async (req: NextRequest) => {
 
 // POST: Create a new fiscal year
 export const POST = async (req: NextRequest) => {
-  await data();
+  await connect();
   try {
     const body = await req.json();
 
@@ -108,7 +147,7 @@ export const POST = async (req: NextRequest) => {
 
 // DELETE: Delete a fiscal year by ID
 export const DELETE = async (req: NextRequest) => {
-  await data();
+  await connect();
   try {
     const id = req.headers.get("id");
 
@@ -140,7 +179,7 @@ export const DELETE = async (req: NextRequest) => {
 
 // PATCH: Update a fiscal year by ID
 export const PATCH = async (req: NextRequest) => {
-  await data();
+  await connect();
   try {
     const body = await req.json();
     const id = req.headers.get("id");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
 import { motion } from "framer-motion";
 import {
@@ -12,40 +12,49 @@ import {
 } from "react-icons/hi";
 import { useTableToPng } from "../../hooks/useTableToPng";
 import BankCheckTableModal from "./BankCheckTableModal";
-
-export interface Bank {
-  _id: string;
-  name: string;
-  description: string;
-  branchName: string;
-  branchCode: string;
-  accountNumber: string;
-  ownerName: string;
-  detailedAccount?: {
-    _id: string;
-    name: string;
-    code: string;
-  };
-  createdAt: string;
-  updatedAt: string;
-}
+import { useBank } from "@/hooks/useBank";
+import { Bank } from "@/types/type";
 
 export default function BankManager() {
-  const [banks, setBanks] = useState<Bank[]>([]);
-  const [filteredBanks, setFilteredBanks] = useState<Bank[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedBank, setSelectedBank] = useState<Bank | null>(null);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isCheckModalOpen, setIsCheckModalOpen] = useState(false);
-  const [selectedBankForChecks, setSelectedBankForChecks] = useState<Bank | null>(null);
+  const [selectedBankForChecks, setSelectedBankForChecks] =
+    useState<Bank | null>(null);
+  const [nameFilter, setNameFilter] = useState("");
+  const [branchFilter, setBranchFilter] = useState("");
+  const [ownerFilter, setOwnerFilter] = useState("");
+  const [accountNumberFilter, setAccountNumberFilter] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [recordsPerPage] = useState(10);
+  const [selectedBanks, setSelectedBanks] = useState<Set<string>>(new Set());
 
-  // Filter states
-  const [nameFilter, setNameFilter] = useState<string>("");
-  const [branchFilter, setBranchFilter] = useState<string>("");
-  const [ownerFilter, setOwnerFilter] = useState<string>("");
+  const {
+    generateRowPng,
+    generateTablePng,
+    generateSelectedRowsPng,
+    isGenerating,
+    error: pngError,
+  } = useTableToPng();
+
+  // Fetch banks using custom hook
+  const {
+    banks,
+    pagination,
+    isLoading,
+    error: swrError,
+    mutate,
+  } = useBank({
+    currentPage,
+    recordsPerPage,
+    nameFilter,
+    branchFilter,
+    ownerFilter,
+    accountNumberFilter,
+  });
 
   // Form state for create/edit
   const [formData, setFormData] = useState({
@@ -55,69 +64,25 @@ export default function BankManager() {
     branchCode: "",
     accountNumber: "",
     ownerName: "",
-    // detailedAccount: "",
   });
 
-  // PNG generation hook
-  const [selectedBanks, setSelectedBanks] = useState<Set<string>>(new Set());
-  const {
-    generateRowPng,
-    generateTablePng,
-    generateSelectedRowsPng,
-    isGenerating,
-    error,
-  } = useTableToPng();
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [nameFilter, branchFilter, ownerFilter, accountNumberFilter]);
 
-  // Fetch banks from API
-  const fetchBanks = async () => {
-    try {
-      setLoading(true);
-      const response = await fetch("/api/transactions/bank");
-      const data = await response.json();
-      setBanks(data || []);
-      setFilteredBanks(data || []);
-    } catch (error) {
-      toast.error("خطا در دریافت لیست بانک ها");
-      console.error("Error fetching banks:", error);
-      setBanks([]);
-      setFilteredBanks([]);
-    } finally {
-      setLoading(false);
-    }
+  const clearFilters = () => {
+    setNameFilter("");
+    setBranchFilter("");
+    setOwnerFilter("");
+    setAccountNumberFilter("");
+    setCurrentPage(1);
   };
 
-  // Filter banks
-  const applyFilters = () => {
-    let filtered = [...banks];
-
-    if (nameFilter) {
-      filtered = filtered.filter((bank) =>
-        bank.name.toLowerCase().includes(nameFilter.toLowerCase())
-      );
-    }
-
-    if (branchFilter) {
-      filtered = filtered.filter((bank) =>
-        bank.branchName.toLowerCase().includes(branchFilter.toLowerCase())
-      );
-    }
-
-    if (ownerFilter) {
-      filtered = filtered.filter((bank) =>
-        bank.ownerName.toLowerCase().includes(ownerFilter.toLowerCase())
-      );
-    }
-
-    setFilteredBanks(filtered);
-  };
-
-  useEffect(() => {
-    applyFilters();
-  }, [banks, nameFilter, branchFilter, ownerFilter]);
-
-  useEffect(() => {
-    fetchBanks();
-  }, []);
+  // Calculate total banks count
+  const totalBanks = useMemo(() => {
+    return banks.length;
+  }, [banks]);
 
   // Handle create bank
   const handleCreate = async () => {
@@ -132,6 +97,7 @@ export default function BankManager() {
 
       if (response.ok) {
         toast.success("بانک با موفقیت ایجاد شد");
+        mutate();
         setIsCreateModalOpen(false);
         setFormData({
           name: "",
@@ -140,9 +106,7 @@ export default function BankManager() {
           branchCode: "",
           accountNumber: "",
           ownerName: "",
-          // detailedAccount: "",
         });
-        fetchBanks();
       } else {
         toast.error("خطا در ایجاد بانک");
       }
@@ -168,9 +132,9 @@ export default function BankManager() {
 
       if (response.ok) {
         toast.success("بانک با موفقیت ویرایش شد");
+        mutate();
         setIsEditModalOpen(false);
         setSelectedBank(null);
-        fetchBanks();
       } else {
         toast.error("خطا در ویرایش بانک");
       }
@@ -194,7 +158,7 @@ export default function BankManager() {
 
       if (response.ok) {
         toast.success("بانک با موفقیت حذف شد");
-        setBanks(banks.filter((bank) => bank._id !== selectedBank._id));
+        mutate();
         setIsDeleteModalOpen(false);
         setSelectedBank(null);
       } else {
@@ -215,7 +179,6 @@ export default function BankManager() {
       branchCode: bank.branchCode,
       accountNumber: bank.accountNumber,
       ownerName: bank.ownerName,
-      // detailedAccount: bank.detailedAccount._id,
     });
     setIsEditModalOpen(true);
   };
@@ -231,7 +194,10 @@ export default function BankManager() {
       "صاحب حساب",
     ];
     const rowData = {
-      index: filteredBanks.findIndex((b) => b._id === bank._id) + 1,
+      index:
+        (currentPage - 1) * recordsPerPage +
+        banks.findIndex((b) => b._id === bank._id) +
+        1,
       name: bank.name,
       branchName: bank.branchName,
       branchCode: bank.branchCode,
@@ -254,8 +220,8 @@ export default function BankManager() {
       "شماره حساب",
       "صاحب حساب",
     ];
-    const tableData = filteredBanks.map((bank, idx) => ({
-      index: idx + 1,
+    const tableData = banks.map((bank, idx) => ({
+      index: (currentPage - 1) * recordsPerPage + idx + 1,
       name: bank.name,
       branchName: bank.branchName,
       branchCode: bank.branchCode,
@@ -281,18 +247,21 @@ export default function BankManager() {
   };
 
   const handleSelectAll = () => {
-    if (selectedBanks.size === filteredBanks.length) {
+    if (selectedBanks.size === banks.length) {
       setSelectedBanks(new Set());
     } else {
-      setSelectedBanks(new Set(filteredBanks.map((bank) => bank._id)));
+      setSelectedBanks(new Set(banks.map((bank) => bank._id)));
     }
   };
 
   const handleSelectedRowsPng = () => {
-    const selectedData = filteredBanks
+    const selectedData = banks
       .filter((bank) => selectedBanks.has(bank._id))
       .map((bank) => ({
-        index: filteredBanks.findIndex((b) => b._id === bank._id) + 1,
+        index:
+          (currentPage - 1) * recordsPerPage +
+          banks.findIndex((b) => b._id === bank._id) +
+          1,
         name: bank.name,
         branchName: bank.branchName,
         branchCode: bank.branchCode,
@@ -330,7 +299,7 @@ export default function BankManager() {
           <div className="flex gap-2">
             <button
               onClick={handleTablePng}
-              disabled={isGenerating || filteredBanks.length === 0}
+              disabled={isGenerating || banks.length === 0}
               className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2"
             >
               {isGenerating ? (
@@ -375,15 +344,17 @@ export default function BankManager() {
         </div>
 
         {/* Error display */}
-        {error && (
+        {(pngError || swrError) && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-600 text-sm">{error}</p>
+            <p className="text-red-600 text-sm">
+              {pngError || swrError?.message}
+            </p>
           </div>
         )}
 
         {/* Filters */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 فیلتر بر اساس نام بانک
@@ -422,14 +393,22 @@ export default function BankManager() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
+                فیلتر بر اساس شماره حساب
+              </label>
+              <input
+                type="text"
+                value={accountNumberFilter}
+                onChange={(e) => setAccountNumberFilter(e.target.value)}
+                placeholder="شماره حساب"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 پاک کردن فیلترها
               </label>
               <button
-                onClick={() => {
-                  setNameFilter("");
-                  setBranchFilter("");
-                  setOwnerFilter("");
-                }}
+                onClick={clearFilters}
                 className="w-full px-4 cursor-pointer py-2 border border-red-500 text-red-600 rounded-md hover:bg-red-600 hover:text-white transition"
               >
                 پاک کردن فیلترها
@@ -440,12 +419,12 @@ export default function BankManager() {
 
         {/* Banks Table */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          {loading ? (
+          {isLoading ? (
             <div className="p-8 text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
               <p className="mt-4 text-gray-600">در حال دریافت اطلاعات...</p>
             </div>
-          ) : filteredBanks.length === 0 ? (
+          ) : banks.length === 0 ? (
             <div className="p-8 text-center">
               <p className="text-gray-500">بانکی یافت نشد</p>
             </div>
@@ -461,8 +440,8 @@ export default function BankManager() {
                       <input
                         type="checkbox"
                         checked={
-                          selectedBanks.size === filteredBanks.length &&
-                          filteredBanks.length > 0
+                          selectedBanks.size === banks.length &&
+                          banks.length > 0
                         }
                         onChange={handleSelectAll}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -492,7 +471,7 @@ export default function BankManager() {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredBanks.map((bank, idx) => (
+                  {banks.map((bank, idx) => (
                     <motion.tr
                       key={bank._id}
                       initial={{ opacity: 0 }}
@@ -511,7 +490,7 @@ export default function BankManager() {
                         />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {idx + 1}
+                        {(currentPage - 1) * recordsPerPage + idx + 1}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {bank.name}
@@ -599,7 +578,74 @@ export default function BankManager() {
                     </motion.tr>
                   ))}
                 </tbody>
+                <tfoot className="bg-gray-100">
+                  <tr>
+                    <td
+                      colSpan={2}
+                      className="px-6 py-4 text-right text-sm font-bold text-gray-900"
+                    >
+                      جمع کل:
+                    </td>
+                    <td className="px-6 py-4 text-right text-sm font-bold text-gray-900">
+                      {totalBanks} بانک
+                    </td>
+                    <td colSpan={5}></td>
+                  </tr>
+                </tfoot>
               </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {pagination.totalPages > 1 && (
+            <div className="mt-6 flex flex-col sm:flex-row justify-center items-center gap-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  قبلی
+                </button>
+                <div className="flex gap-1">
+                  {Array.from(
+                    { length: Math.min(5, pagination.totalPages) },
+                    (_, i) => {
+                      let pageNum;
+                      if (pagination.totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= pagination.totalPages - 2) {
+                        pageNum = pagination.totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`px-3 py-2 border rounded-md text-sm ${
+                            currentPage === pageNum
+                              ? "bg-blue-500 text-white border-blue-500"
+                              : "border-gray-300 hover:bg-gray-50"
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    }
+                  )}
+                </div>
+                <button
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === pagination.totalPages}
+                  className="px-3 py-2 border border-gray-300 rounded-md text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                >
+                  بعدی
+                </button>
+              </div>
             </div>
           )}
         </div>
