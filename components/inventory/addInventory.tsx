@@ -10,6 +10,7 @@ import {
   ProviderReportData,
   SideMaterial,
 } from "@/types/type";
+import FormattedNumberInput from "@/utils/FormattedNumberInput";
 
 const AddInventory: React.FC = () => {
   // State for storing fetched data
@@ -361,11 +362,11 @@ const AddInventory: React.FC = () => {
           <label className="block text-sm font-medium text-gray-700">
             قیمت خرید
           </label>
-          <input
-            type="number"
-            name="buyPrice"
-            value={formValues.buyPrice}
-            onChange={handleInputChange}
+          <FormattedNumberInput
+            value={Number(formValues.buyPrice) || 0}
+            onChange={(newValue) =>
+              setFormValues((prev) => ({ ...prev, buyPrice: String(newValue) }))
+            }
             placeholder="قیمت خرید را وارد کنید"
             className="w-full px-3 py-2 border placeholder:text-black/40 text-black border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
