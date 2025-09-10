@@ -132,8 +132,12 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
 
     setFormState((prev) => ({ ...prev, loading: true, errors: {} }));
 
-    // Debug: Log the form data being submitted
-    console.log("Submitting form data:", formState.data);
+    // Filter out empty string values to prevent ObjectId cast errors
+    const cleanedData = Object.fromEntries(
+      Object.entries(formState.data).filter(([key, value]) => value !== "")
+    );
+
+    console.log("Submitting form data:", cleanedData);
 
     try {
       const response = await fetch(config.endpoint, {
@@ -141,7 +145,7 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formState.data),
+        body: JSON.stringify(cleanedData),
       });
 
       const result = await response.json();

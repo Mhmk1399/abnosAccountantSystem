@@ -15,7 +15,16 @@ interface GroupDetailAccountData {
   detailedAccounts?: {
     _id: string;
     name: string;
-  };
+    description?: string;
+    code?: string;
+    type?: string;
+    customer?: string;
+    balance?: {
+      totalDebit: number;
+      totalCredit: number;
+      net: number;
+    };
+  }[];
   createdAt?: string;
   updatedAt?: string;
 }
@@ -251,9 +260,22 @@ const GroupDetailAccount: React.FC = () => {
     responseHandler: (res) => res.groupDetailAccounts,
     title: "لیست گروه های حساب",
     description: "مدیریت گروه های حساب تفصیلی",
+    enableFilters: true,
     columns: [
-      { key: "name", label: "نام گروه حساب" },
-      { key: "flag", label: "شناسه یکتا" },
+      {
+        key: "name",
+        label: "نام گروه حساب",
+        filterable: true,
+        filterType: "text",
+        placeholder: "جستجو در نام گروه حساب",
+      },
+      {
+        key: "flag",
+        label: "شناسه یکتا",
+        filterable: true,
+        filterType: "text",
+        placeholder: "جستجو در شناسه یکتا",
+      },
       { key: "description", label: "توضیحات" },
       {
         key: "status",
@@ -270,9 +292,31 @@ const GroupDetailAccount: React.FC = () => {
       {
         key: "detailedAccounts",
         label: "حساب های تفصیلی",
+        filterable: true,
+        filterType: "select",
+        placeholder: "انتخاب حساب تفصیلی",
+        filterOptions: detailedAccounts.map((acc, index) => ({
+          value: acc.name,
+          label: acc.name,
+          key: acc._id || `acc-${index}`,
+        })),
         render: (value: unknown) => {
           if (Array.isArray(value)) {
-            return value.map((acc) => acc.name || acc).join(", ");
+            return (
+              value
+                .map((acc) => {
+                  if (
+                    typeof acc === "object" &&
+                    acc !== null &&
+                    "name" in acc
+                  ) {
+                    return String(acc.name || "");
+                  }
+                  return String(acc || "");
+                })
+                .filter((name) => name)
+                .join(", ") || "-"
+            );
           }
           return "-";
         },

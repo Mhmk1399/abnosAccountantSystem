@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
-import { 
-  createInventory, 
-  getAllInventory, 
-  updateInventory, 
-  deleteInventory 
+import {
+  createInventory,
+  getAllInventory,
+  updateInventory,
+  deleteInventory,
 } from "@/middleware/inventory";
 import connect from "@/lib/data";
 
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-    await connect();
+  await connect();
   return updateInventory(req);
 }
 

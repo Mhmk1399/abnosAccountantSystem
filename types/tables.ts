@@ -37,7 +37,7 @@ export interface TableColumn {
     | "date"
     | "number";
   filterKey?: string;
-  filterOptions?: { value: string; label: string }[];
+  filterOptions?: { value: string; label: string , key?:string }[];
   placeholder?: string;
   min?: number;
   max?: number;

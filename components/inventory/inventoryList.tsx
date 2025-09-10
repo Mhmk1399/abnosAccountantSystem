@@ -1,71 +1,14 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import DynamicTable from "@/components/global/DynamicTable";
-import InventoryEditForm from "./inventoryEditForm";
+import DynamicForm from "@/components/global/DynamicForm";
+import { FormConfig } from "@/types/form";
 import { motion, AnimatePresence } from "framer-motion";
 import { IoClose } from "react-icons/io5";
 import { useInventoryData } from "@/hooks/useInventoryData";
 import toast from "react-hot-toast";
 import { TableColumn } from "@/types/tables";
-import {
-  FormField,
-  InventoryFormData,
-  InventoryTableData,
-} from "@/types/type";
-
-const columns: TableColumn[] = [
-  { key: "name", label: "نام", sortable: true },
-  { key: "code", label: "کد", sortable: true },
-  { key: "buyPrice", label: "قیمت خرید", sortable: true },
-  { key: "count", label: "تعداد", sortable: true },
-  { key: "provider.name", label: "تامین کننده", sortable: true },
-  {
-    key: "materialType",
-    label: "نوع مواد",
-    sortable: true,
-    render: (value, row: unknown) => {
-      const typedRow = row as InventoryTableData;
-      if (typedRow.glass) return "شیشه";
-      if (typedRow.sideMaterial) return "مواد جانبی";
-      return "نامشخص";
-    },
-  },
-  {
-    key: "materialName",
-    label: "نام مواد",
-    sortable: true,
-    render: (value, row: unknown) => {
-      const typedRow = row as InventoryTableData;
-      if (typedRow.glass && typeof typedRow.glass === 'object' && 'name' in typedRow.glass) return (typedRow.glass as { name: string }).name;
-      if (typedRow.sideMaterial && typeof typedRow.sideMaterial === 'object' && 'name' in typedRow.sideMaterial) return (typedRow.sideMaterial as { name: string }).name;
-      return "نامشخص";
-    },
-  },
-  {
-    key: "dimensions",
-    label: "ابعاد",
-    sortable: false,
-    render: (value, row: unknown) => {
-      const typedRow = row as InventoryTableData;
-      if (typedRow.width && typedRow.height) {
-        return `${typedRow.width} × ${typedRow.height}`;
-      }
-      return "ندارد";
-    },
-  },
-  {
-    key: "enterDate",
-    label: "تاریخ ورود",
-    sortable: true,
-    type: "date",
-  },
-  {
-    key: "createdAt",
-    label: "تاریخ ایجاد",
-    sortable: true,
-    type: "date",
-  },
-];
+import { FormField, InventoryFormData, InventoryTableData } from "@/types/type";
 
 const InventoryList: React.FC = () => {
   const {
@@ -81,6 +24,105 @@ const InventoryList: React.FC = () => {
   const [isCustomEditModalOpen, setIsCustomEditModalOpen] = useState(false);
   const [selectedInventoryItem, setSelectedInventoryItem] =
     useState<InventoryFormData | null>(null);
+  const columns: TableColumn[] = [
+    {
+      key: "name",
+      label: "نام",
+      sortable: true,
+      filterable: true,
+      filterType: "text",
+      placeholder: "جستجو در نام",
+    },
+    { key: "code", label: "کد", sortable: true },
+    {
+      key: "buyPrice",
+      label: "قیمت خرید",
+      sortable: true,
+      filterable: true,
+      filterType: "numberRange",
+      placeholder: "قیمت خرید",
+    },
+    { key: "count", label: "تعداد", sortable: true },
+    {
+      key: "provider.name",
+      label: "تامین کننده",
+      sortable: true,
+      filterable: true,
+      filterType: "select",
+      placeholder: "انتخاب تامین کننده",
+      filterOptions: providers.map((provider) => ({
+        value: provider.label,
+        label: provider.label,
+        key: provider.value,
+      })),
+    },
+    {
+      key: "materialType",
+      label: "نوع مواد",
+      sortable: true,
+      filterable: true,
+      filterType: "select",
+      placeholder: "انتخاب نوع مواد",
+      filterOptions: [
+        { value: "شیشه", label: "شیشه", key: "glass" },
+        { value: "مواد جانبی", label: "مواد جانبی", key: "sideMaterial" },
+      ],
+      render: (value, row: unknown) => {
+        const typedRow = row as InventoryTableData;
+        if (typedRow.glass) return "شیشه";
+        if (typedRow.sideMaterial) return "مواد جانبی";
+        return "نامشخص";
+      },
+    },
+    {
+      key: "materialName",
+      label: "نام مواد",
+      sortable: true,
+      render: (value, row: unknown) => {
+        const typedRow = row as InventoryTableData;
+        if (
+          typedRow.glass &&
+          typeof typedRow.glass === "object" &&
+          "name" in typedRow.glass
+        )
+          return (typedRow.glass as { name: string }).name;
+        if (
+          typedRow.sideMaterial &&
+          typeof typedRow.sideMaterial === "object" &&
+          "name" in typedRow.sideMaterial
+        )
+          return (typedRow.sideMaterial as { name: string }).name;
+        return "نامشخص";
+      },
+    },
+    {
+      key: "dimensions",
+      label: "ابعاد",
+      sortable: false,
+      render: (value, row: unknown) => {
+        const typedRow = row as InventoryTableData;
+        if (typedRow.width && typedRow.height) {
+          return `${typedRow.width} × ${typedRow.height}`;
+        }
+        return "ندارد";
+      },
+    },
+    {
+      key: "enterDate",
+      label: "تاریخ ورود",
+      sortable: true,
+      type: "date",
+      filterable: true,
+      filterType: "dateRange",
+      placeholder: "انتخاب تاریخ",
+    },
+    {
+      key: "createdAt",
+      label: "تاریخ ایجاد",
+      sortable: true,
+      type: "date",
+    },
+  ];
 
   // Form fields for editing inventory (unused but kept for compatibility)
   const getInventoryFormFields = (): FormField[] => [
@@ -228,7 +270,27 @@ const InventoryList: React.FC = () => {
   ];
 
   const handleEditClick = (item: unknown) => {
-    setSelectedInventoryItem(transformDataForEdit(item as InventoryTableData));
+    const typedItem = item as any;
+
+    // Transform the item to match InventoryFormData structure
+    const formData: InventoryFormData = {
+      _id: typedItem._id,
+      name: typedItem.name,
+      code: typedItem.code,
+      buyPrice: typedItem.buyPrice,
+      count: typedItem.count,
+      provider: typedItem.provider?._id || "",
+      materialType: typedItem.glass ? "glass" : "sideMaterial",
+      glass: typedItem.glass?._id || "",
+      sideMaterial: typedItem.sideMaterial?._id || "",
+      width: typedItem.width || 0,
+      height: typedItem.height || 0,
+      enterDate: typedItem.enterDate
+        ? new Date(typedItem.enterDate).toISOString().split("T")[0]
+        : "",
+    };
+
+    setSelectedInventoryItem(formData);
     setIsCustomEditModalOpen(true);
   };
 
@@ -263,6 +325,7 @@ const InventoryList: React.FC = () => {
           title: "لیست موجودی",
           endpoint: "/api/inventory",
           columns: columns,
+          enableFilters: true,
           actions: {
             edit: true,
             delete: false,
@@ -305,11 +368,104 @@ const InventoryList: React.FC = () => {
                     />
                   </button>
                 </div>
-                <InventoryEditForm
-                  inventoryId={selectedInventoryItem._id || ""}
-                  initialValues={selectedInventoryItem}
-                  onSuccess={handleCustomEditSuccess}
-                  onCancel={closeCustomEditModal}
+                <DynamicForm
+                  config={
+                    {
+                      title: "ویرایش موجودی",
+                      endpoint: "/api/inventory",
+                      method: "PATCH",
+                      fields: [
+                        {
+                          name: "id",
+                          type: "hidden",
+                          label: "",
+                          defaultValue: selectedInventoryItem._id,
+                        },
+                        {
+                          name: "name",
+                          type: "text",
+                          label: "نام",
+                          required: true,
+                          placeholder: "نام را وارد کنید",
+                        },
+                        {
+                          name: "buyPrice",
+                          type: "number",
+                          label: "قیمت خرید",
+                          required: true,
+                          placeholder: "قیمت خرید",
+                        },
+                        {
+                          name: "count",
+                          type: "number",
+                          label: "تعداد",
+                          required: true,
+                          placeholder: "تعداد",
+                        },
+                        {
+                          name: "provider",
+                          type: "select",
+                          label: "تامین کننده",
+                          required: true,
+                          options: [
+                            { label: "انتخاب کنید", value: "" },
+                            ...providers,
+                          ],
+                        },
+                        {
+                          name: "materialType",
+                          type: "select",
+                          label: "نوع مواد",
+                          required: true,
+                          options: [
+                            { label: "انتخاب کنید", value: "" },
+                            { label: "شیشه", value: "glass" },
+                            { label: "مواد جانبی", value: "sideMaterial" },
+                          ],
+                        },
+                        {
+                          name: "glass",
+                          type: "select",
+                          label: "شیشه",
+                          options: [
+                            { label: "انتخاب کنید", value: "" },
+                            ...glasses,
+                          ],
+                        },
+                        {
+                          name: "sideMaterial",
+                          type: "select",
+                          label: "مواد جانبی",
+                          options: [
+                            { label: "انتخاب کنید", value: "" },
+                            ...sideMaterials,
+                          ],
+                        },
+                        {
+                          name: "width",
+                          type: "number",
+                          label: "عرض (سانتیمتر)",
+                          placeholder: "عرض",
+                        },
+                        {
+                          name: "height",
+                          type: "number",
+                          label: "ارتفاع (سانتیمتر)",
+                          placeholder: "ارتفاع",
+                        },
+                        {
+                          name: "enterDate",
+                          type: "persian-date",
+                          label: "تاریخ ورود",
+                          required: true,
+                        },
+                      ],
+                      submitButtonText: "بروزرسانی موجودی",
+                      onSuccess: handleCustomEditSuccess,
+                      onError: () => toast.error("خطا در بروزرسانی موجودی"),
+                    } as FormConfig
+                  }
+                  initialData={selectedInventoryItem || null}
                 />
               </div>
             </motion.div>

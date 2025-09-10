@@ -16,12 +16,13 @@ import persian from "react-date-object/calendars/persian";
 import persian_fa from "react-date-object/locales/persian_fa";
 import { useTableData } from "@/hooks/useTable";
 
+type RowType = {
+  [key: string]: unknown;
+  _id?: string | number;
+  id?: string | number;
+};
+
 const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
-  type RowType = {
-    [key: string]: unknown;
-    _id?: string | number;
-    id?: string | number;
-  };
   const [sortConfig, setSortConfig] = useState<{
     key: string;
     direction: "asc" | "desc" | string;
@@ -43,10 +44,14 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
   } = useTableToPng();
 
   // استفاده از هوک useTableData برای دریافت داده‌ها
+  // Remove materialType from server filters since it's handled client-side
+  const serverFilters = { ...config.filters, ...localFilters };
+  delete serverFilters.materialType;
+
   const { data, pagination, error, isLoading, mutate } = useTableData(
     config.endpoint,
     config.headers,
-    { ...config.filters, ...localFilters },
+    serverFilters,
     currentPage,
     config.responseHandler
   );
@@ -86,9 +91,24 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
   };
 
   const sortedData = React.useMemo(() => {
-    if (!sortConfig) return data;
+    let filteredData = [...data];
 
-    return [...data].sort((a, b) => {
+    // Apply client-side materialType filter
+    const materialTypeFilter = localFilters.materialType;
+    if (materialTypeFilter) {
+      filteredData = filteredData.filter((item: any) => {
+        if (materialTypeFilter === "شیشه") {
+          return item.glass && item.glass !== null;
+        } else if (materialTypeFilter === "مواد جانبی") {
+          return item.sideMaterial && item.sideMaterial !== null;
+        }
+        return true;
+      });
+    }
+
+    if (!sortConfig) return filteredData;
+
+    return filteredData.sort((a, b) => {
       const aValue = a[sortConfig.key];
       const bValue = b[sortConfig.key];
 
@@ -104,7 +124,7 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
       }
       return 0;
     });
-  }, [data, sortConfig]);
+  }, [data, sortConfig, localFilters.materialType]);
 
   const formatCellValue = (
     value: unknown,
@@ -232,8 +252,14 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
           >
             <option value="">{field.placeholder || "انتخاب کنید"}</option>
             {field.filterOptions?.map(
-              (option: { value: string; label: string }) => (
-                <option key={option.value} value={option.value}>
+              (
+                option: { value: string; label: string; key?: string },
+                index: number
+              ) => (
+                <option
+                  key={option.key || option.value || index}
+                  value={option.value}
+                >
                   {option.label}
                 </option>
               )
@@ -685,11 +711,12 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
                       />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {pagination
+                      {pagination &&
+                      pagination.currentPage &&
+                      pagination.itemsPerPage
                         ? (pagination.currentPage - 1) *
                             pagination.itemsPerPage +
-                          index +
-                          1
+                          (index + 1)
                         : index + 1}
                     </td>
                     {config.columns.map((column) => (
@@ -812,46 +839,11 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
       {/* Pagination */}
       {pagination && (
         <motion.div
-          className="flex flex-col sm:flex-row items-center justify-between mt-6 px-3 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-white to-gray-50 border border-gray-200 rounded-xl shadow-sm gap-3 sm:gap-0"
+          className="flex flex-col sm:flex-row items-center justify-center mt-6 px-3 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-white to-gray-50 border border-gray-200 rounded-xl shadow-sm gap-3 sm:gap-0"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <div className="flex items-center text-xs sm:text-sm font-medium text-gray-600">
-            <span className="bg-gray-100 px-2 sm:px-3 py-1 rounded-full text-center">
-              <span className="hidden sm:inline">
-                نمایش{" "}
-                <span className="font-bold text-blue-600">
-                  {(pagination.currentPage - 1) * pagination.itemsPerPage + 1}
-                </span>{" "}
-                تا{" "}
-                <span className="font-bold text-blue-600">
-                  {Math.min(
-                    pagination.currentPage * pagination.itemsPerPage,
-                    pagination.totalItems
-                  )}
-                </span>{" "}
-                از{" "}
-                <span className="font-bold text-green-600">
-                  {pagination.totalItems}
-                </span>{" "}
-                نتیجه
-              </span>
-              <span className="sm:hidden">
-                <span className="font-bold text-blue-600">
-                  {(pagination.currentPage - 1) * pagination.itemsPerPage + 1}-
-                  {Math.min(
-                    pagination.currentPage * pagination.itemsPerPage,
-                    pagination.totalItems
-                  )}
-                </span>{" "}
-                از{" "}
-                <span className="font-bold text-green-600">
-                  {pagination.totalItems}
-                </span>
-              </span>
-            </span>
-          </div>
           <div className="flex items-center gap-2 sm:gap-3">
             <motion.button
               onClick={() => handlePageChange(pagination.currentPage - 1)}
@@ -867,7 +859,7 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
               قبلی
             </motion.button>
             <div className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-bold bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg shadow-md">
-              {pagination.currentPage} / {pagination.totalPages}
+              {pagination.currentPage || 1} / {pagination.totalPages || 1}
             </div>
             <motion.button
               onClick={() => handlePageChange(pagination.currentPage + 1)}

@@ -31,6 +31,11 @@ const fetcher = async (
       data: result.permissions || [],
       pagination: result.pagination || null,
     };
+  } else if (result.groupDetailAccounts) {
+    return {
+      data: result.groupDetailAccounts || [],
+      pagination: result.groupDetailAccounts || null,
+    };
   } else if (result.rollcalls) {
     return {
       data: result.rollcalls || [],
@@ -46,6 +51,11 @@ const fetcher = async (
   } else if (result.inventoryReports) {
     return {
       data: result.inventoryReports || [],
+      pagination: result.pagination || null,
+    };
+  } else if (result.typeOfDailyBooks) {
+    return {
+      data: result.typeOfDailyBooks || [],
       pagination: result.pagination || null,
     };
   } else if (result.inventory) {
@@ -84,13 +94,8 @@ export const useTableData = (
   Object.entries(allFilters).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
       if (Array.isArray(value)) {
-        const [min, max] = value;
-        if (min !== undefined && min !== null && min !== "") {
-          url.searchParams.set(`${key}From`, String(min));
-        }
-        if (max !== undefined && max !== null && max !== "") {
-          url.searchParams.set(`${key}To`, String(max));
-        }
+        // Send array as JSON string for range filters
+        url.searchParams.set(key, JSON.stringify(value));
       } else {
         url.searchParams.set(key, String(value));
       }
