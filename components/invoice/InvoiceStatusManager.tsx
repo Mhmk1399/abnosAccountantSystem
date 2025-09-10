@@ -9,7 +9,9 @@ import { Customer } from "@/types/type";
 
 export default function InvoiceStatusManager() {
   const tableRef = useRef<{ refreshData: () => void }>(null);
-  const [customers, setCustomers] = useState<any[]>([]);
+  const [customers, setCustomers] = useState<
+    { value: string; label: string; key: string }[]
+  >([]);
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -83,12 +85,18 @@ export default function InvoiceStatusManager() {
         filterType: "select",
         placeholder: "انتخاب مشتری",
         filterOptions: customers,
-        render: (value: unknown, row: any) => row.customer?.name || "ندارد",
+        render: (value: unknown, row: Record<string, unknown>) => {
+          const customer = row.customer as { name?: string } | undefined;
+          return customer?.name || "ندارد";
+        },
       },
       {
         key: "priority.name",
         label: "اولویت",
-        render: (value: unknown, row: any) => row.priority?.name || "ندارد",
+        render: (value: unknown, row: Record<string, unknown>) => {
+          const priority = row.priority as { name?: string } | undefined;
+          return priority?.name || "ندارد";
+        },
       },
       {
         key: "price",
@@ -135,13 +143,16 @@ export default function InvoiceStatusManager() {
       {
         key: "action",
         label: "عملیات",
-        render: (value: unknown, row: any) => (
-          <button
-            onClick={() => updateStatus(row)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
-          >
-            شروع پردازش
-          </button>
+        render: (value: unknown, row: Record<string, unknown>) => (
+          console.log(value, row),
+          (
+            <button
+              onClick={() => updateStatus(row as Invoice)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
+            >
+              شروع پردازش
+            </button>
+          )
         ),
       },
     ],

@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const accountNumberFilter = searchParams.get('accountNumberFilter');
 
     // Build filter object
-    const filter: any = {};
+    const filter: Record<string, unknown> = {};
 
     if (nameFilter) {
       filter.name = { $regex: nameFilter, $options: 'i' };

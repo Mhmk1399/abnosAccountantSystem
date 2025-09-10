@@ -96,7 +96,7 @@ const DynamicTable = React.forwardRef(({ config }: DynamicTableProps, ref) => {
     // Apply client-side materialType filter
     const materialTypeFilter = localFilters.materialType;
     if (materialTypeFilter) {
-      filteredData = filteredData.filter((item: any) => {
+      filteredData = filteredData.filter((item: Record<string, unknown>) => {
         if (materialTypeFilter === "شیشه") {
           return item.glass && item.glass !== null;
         } else if (materialTypeFilter === "مواد جانبی") {

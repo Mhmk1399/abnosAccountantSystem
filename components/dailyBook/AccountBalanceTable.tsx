@@ -101,8 +101,7 @@ const AccountBalanceTable: React.FC = () => {
   const [maxAmount, setMaxAmount] = useState<string>("");
   const [groupedBalances, setGroupedBalances] = useState<GroupedBalance[]>([]);
   const [loading, setLoading] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
-
+ 
   const fetchAccountBalances = async () => {
     setLoading(true);
     try {
@@ -402,15 +401,15 @@ const AccountBalanceTable: React.FC = () => {
     XLSX.writeFile(workbook, "AccountBalances.xlsx");
   };
 
-  const toggleGroup = (groupId: string) => {
-    const newExpanded = new Set(expandedGroups);
-    if (newExpanded.has(groupId)) {
-      newExpanded.delete(groupId);
-    } else {
-      newExpanded.add(groupId);
-    }
-    setExpandedGroups(newExpanded);
-  };
+  // const toggleGroup = (groupId: string) => {
+  //   const newExpanded = new Set(expandedGroups);
+  //   if (newExpanded.has(groupId)) {
+  //     newExpanded.delete(groupId);
+  //   } else {
+  //     newExpanded.add(groupId);
+  //   }
+  //   setExpandedGroups(newExpanded);
+  // };
 
   if (contextLoading || loading) {
     return (

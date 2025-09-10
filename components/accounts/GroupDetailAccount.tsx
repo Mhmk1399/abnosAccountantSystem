@@ -47,7 +47,7 @@ const GroupDetailAccount: React.FC = () => {
   const [viewModalConfig, setViewModalConfig] = useState<ModalConfig | null>(
     null
   );
-  const [detailedAccounts, setDetailedAccounts] = useState<any[]>([]);
+  const [detailedAccounts, setDetailedAccounts] = useState<{ _id: string; name: string }[]>([]);
 
   useEffect(() => {
     const fetchDetailedAccounts = async () => {

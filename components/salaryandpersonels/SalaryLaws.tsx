@@ -274,8 +274,11 @@ const SalaryLaws: React.FC = () => {
       {
         key: "year",
         label: "سال مالی",
-        render: (value: unknown, row: SalaryLawsWithYear) =>
-          row.year?.name || "-",
+        render: (value: unknown, row: Record<string, unknown>) => {
+          console.log(value);
+          const typedRow = row as unknown as SalaryLawsWithYear;
+          return typedRow.year?.name || "-";
+        },
       },
       { key: "workHoursPerDay", label: "ساعت کار روزانه" },
       {

@@ -51,7 +51,7 @@ export const GET = async (req: NextRequest) => {
       filter.flag = { $regex: flagParam, $options: "i" };
     }
 
-    let query = GroupDetailAccount.find(filter).populate("detailedAccounts");
+    const query = GroupDetailAccount.find(filter).populate("detailedAccounts");
 
     // Filter by detailed account name if provided
     const detailAccountName = searchParams.get("detailedAccounts");

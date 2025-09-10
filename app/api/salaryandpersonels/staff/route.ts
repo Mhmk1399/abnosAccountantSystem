@@ -1,8 +1,21 @@
-import { NextResponse, NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import staff from "@/models/salaryandpersonels/staff";
 import DetailedAccount from "@/models/accounts/detailedAcounts";
 import { generateDetailedAccountCode } from "@/lib/codeGenerator";
 import connect from "@/lib/data";
+
+// Define types for MongoDB query filters
+interface DateFilter {
+  $gte?: Date;
+  $lte?: Date;
+}
+
+interface StaffFilter {
+  name?: { $regex: string; $options: string };
+  personalNumber?: { $regex: string; $options: string };
+  mobilePhone?: { $regex: string; $options: string };
+  contracthireDate?: DateFilter;
+}
 
 // GET: Get all or one staff entry
 export const GET = async (req: NextRequest) => {
@@ -29,39 +42,65 @@ export const GET = async (req: NextRequest) => {
   }
 
   try {
+    // Safely handle req.url
+    if (!req.url) {
+      return NextResponse.json(
+        { error: "Request URL is undefined" },
+        { status: 400 }
+      );
+    }
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get("page") || "1");
     const limit = parseInt(searchParams.get("limit") || "10");
     const skip = (page - 1) * limit;
 
     // Build filter conditions
-    const filterConditions: any = {};
+    const filterConditions: StaffFilter = {};
     const name = searchParams.get("name");
     const personalNumber = searchParams.get("personalNumber");
     const mobilePhone = searchParams.get("mobilePhone");
     const contracthireDate = searchParams.get("contracthireDate");
 
     if (name) filterConditions.name = { $regex: name, $options: "i" };
-    if (personalNumber) filterConditions.personalNumber = { $regex: personalNumber, $options: "i" };
-    if (mobilePhone) filterConditions.mobilePhone = { $regex: mobilePhone, $options: "i" };
-    
+    if (personalNumber)
+      filterConditions.personalNumber = {
+        $regex: personalNumber,
+        $options: "i",
+      };
+    if (mobilePhone)
+      filterConditions.mobilePhone = { $regex: mobilePhone, $options: "i" };
+
     if (contracthireDate) {
       try {
-        const range = JSON.parse(contracthireDate);
+        const range = JSON.parse(contracthireDate) as [
+          string | undefined,
+          string | undefined
+        ];
         if (Array.isArray(range) && range.length === 2) {
           const [startDate, endDate] = range;
           if (startDate || endDate) {
             filterConditions.contracthireDate = {};
-            if (startDate) filterConditions.contracthireDate.$gte = new Date(startDate);
-            if (endDate) filterConditions.contracthireDate.$lte = new Date(endDate);
+            if (startDate) {
+              const start = new Date(startDate);
+              if (!isNaN(start.getTime())) {
+                filterConditions.contracthireDate.$gte = start;
+              }
+            }
+            if (endDate) {
+              const end = new Date(endDate);
+              if (!isNaN(end.getTime())) {
+                filterConditions.contracthireDate.$lte = end;
+              }
+            }
           }
         }
-      } catch (e) {
-        console.log('Invalid contracthireDate filter format');
+      } catch {
+        console.log("Invalid contracthireDate filter format");
       }
     }
 
-    const staffMembers = await staff.find(filterConditions)
+    const staffMembers = await staff
+      .find(filterConditions)
       .skip(skip)
       .limit(limit)
       .sort({ createdAt: -1 });
@@ -94,7 +133,7 @@ export const POST = async (req: NextRequest) => {
 
   try {
     const body = await req.json();
-    
+
     // Create detailed account for staff
     const code = await generateDetailedAccountCode();
     const detailedAccount = await DetailedAccount.create({
@@ -102,15 +141,15 @@ export const POST = async (req: NextRequest) => {
       description: `حساب تفصیلی پرسنل - ${body.name}`,
       code,
       type: "debit",
-      fiscalType: "permanat"
+      fiscalType: "permanat",
     });
-    
+
     // Create staff with detailed account reference
     const staffMember = await staff.create({
       ...body,
-      detailedAccount: detailedAccount._id
+      detailedAccount: detailedAccount._id,
     });
-    
+
     return NextResponse.json({ staff: staffMember }, { status: 201 });
   } catch (error) {
     return NextResponse.json(

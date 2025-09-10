@@ -139,7 +139,7 @@ const Rollcall: React.FC = () => {
         );
         const rollcallResult = await rollcallResponse.json();
         rollcallData = Array.isArray(rollcallResult) ? rollcallResult : rollcallResult.rollcall || [];
-      } catch (error) {
+      } catch {
         console.log("No rollcall data available");
       }
 

@@ -8,7 +8,23 @@ import { IoClose } from "react-icons/io5";
 import { useInventoryData } from "@/hooks/useInventoryData";
 import toast from "react-hot-toast";
 import { TableColumn } from "@/types/tables";
-import { FormField, InventoryFormData, InventoryTableData } from "@/types/type";
+import { InventoryTableData } from "@/types/type";
+
+interface InventoryFormData {
+  _id: string;
+  name: string;
+  code: string;
+  buyPrice: number;
+  count: number;
+  provider: string;
+  materialType: "glass" | "sideMaterial";
+  glass: string;
+  sideMaterial: string;
+  width: number;
+  height: number;
+  enterDate: string;
+  [key: string]: string | number | boolean | Date | string[] | File;
+}
 
 const InventoryList: React.FC = () => {
   const {
@@ -24,7 +40,9 @@ const InventoryList: React.FC = () => {
   const [selectedInventoryItem, setSelectedInventoryItem] =
     useState<InventoryFormData | null>(null);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-  const [itemToDelete, setItemToDelete] = useState<any>(null);
+  const [itemToDelete, setItemToDelete] = useState<InventoryTableData | null>(
+    null
+  );
   const tableRef = useRef<{ refreshData: () => void }>(null);
   const columns: TableColumn[] = [
     {
@@ -126,165 +144,26 @@ const InventoryList: React.FC = () => {
     },
   ];
 
-  // Form fields for editing inventory (unused but kept for compatibility)
-  const getInventoryFormFields = (): FormField[] => [
-    {
-      name: "name",
-      label: "نام",
-      type: "text",
-      placeholder: "نام را وارد کنید",
-      validation: [
-        { type: "required", message: "نام الزامی است" },
-        { type: "minLength", value: 2, message: "حداقل ۲ کاراکتر نیاز است" },
-      ],
-    },
-    {
-      name: "code",
-      label: "کد",
-      type: "text",
-      placeholder: "کد را وارد کنید",
-      validation: [{ type: "required", message: "کد الزامی است" }],
-    },
-    {
-      name: "buyPrice",
-      label: "قیمت خرید",
-      type: "number",
-      placeholder: "قیمت خرید را وارد کنید",
-      validation: [
-        { type: "required", message: "قیمت خرید الزامی است" },
-        { type: "min", value: 0, message: "قیمت نمی‌تواند منفی باشد" },
-      ],
-    },
-    {
-      name: "count",
-      label: "تعداد",
-      type: "number",
-      placeholder: "تعداد را وارد کنید",
-      validation: [
-        { type: "required", message: "تعداد الزامی است" },
-        { type: "min", value: 1, message: "تعداد باید حداقل ۱ باشد" },
-      ],
-    },
-    {
-      name: "provider",
-      label: "تامین کننده",
-      type: "select",
-      placeholder: "تامین کننده را انتخاب کنید",
-      options: providers,
-      validation: [
-        { type: "required", message: "انتخاب تامین کننده الزامی است" },
-      ],
-    },
-    {
-      name: "materialType",
-      label: "نوع مواد",
-      type: "select",
-      placeholder: "نوع مواد را انتخاب کنید",
-      options: [
-        { label: "شیشه", value: "glass" },
-        { label: "مواد جانبی", value: "sideMaterial" },
-      ],
-      validation: [{ type: "required", message: "انتخاب نوع مواد الزامی است" }],
-    },
-    {
-      name: "glass",
-      label: "شیشه",
-      type: "select",
-      placeholder: "شیشه را انتخاب کنید",
-      options: glasses,
-      validation: [
-        {
-          type: "required",
-          message: "انتخاب شیشه الزامی است",
-          validator: (value, formValues) =>
-            formValues?.materialType === "glass" ? !!value : true,
-        },
-      ],
-      dependency: {
-        field: "materialType",
-        value: "glass",
-      },
-    },
-    {
-      name: "width",
-      label: "عرض (سانتی‌متر)",
-      type: "number",
-      placeholder: "عرض را وارد کنید",
-      validation: [
-        {
-          type: "required",
-          message: "عرض الزامی است",
-          validator: (value, formValues) =>
-            formValues?.materialType === "glass" ? !!value : true,
-        },
-        { type: "min", value: 0, message: "عرض نمی‌تواند منفی باشد" },
-      ],
-      dependency: {
-        field: "materialType",
-        value: "glass",
-      },
-    },
-    {
-      name: "height",
-      label: "ارتفاع (سانتی‌متر)",
-      type: "number",
-      placeholder: "ارتفاع را وارد کنید",
-      validation: [
-        {
-          type: "required",
-          message: "ارتفاع الزامی است",
-          validator: (value, formValues) =>
-            formValues?.materialType === "glass" ? !!value : true,
-        },
-        { type: "min", value: 0, message: "ارتفاع نمی‌تواند منفی باشد" },
-      ],
-      dependency: {
-        field: "materialType",
-        value: "glass",
-      },
-    },
-    {
-      name: "sideMaterial",
-      label: "مواد جانبی",
-      type: "select",
-      placeholder: "مواد جانبی را انتخاب کنید",
-      options: sideMaterials,
-      validation: [
-        {
-          type: "required",
-          message: "انتخاب مواد جانبی الزامی است",
-          validator: (value, formValues) =>
-            formValues?.materialType === "sideMaterial" ? !!value : true,
-        },
-      ],
-      dependency: {
-        field: "materialType",
-        value: "sideMaterial",
-      },
-    },
-    {
-      name: "enterDate",
-      label: "تاریخ ورود",
-      type: "date",
-      placeholder: "تاریخ ورود را وارد کنید",
-      validation: [{ type: "required", message: "تاریخ ورود الزامی است" }],
-    },
-  ];
-
   const handleEditClick = (item: unknown) => {
-    const typedItem = item as any;
+    const typedItem = item as InventoryTableData;
 
-    // Transform the item to match InventoryFormData structure
+    // Transform the item to match InventoryFormData structure, ensuring no undefined values
     const formData: InventoryFormData = {
-      _id: typedItem._id,
-      name: typedItem.name,
-      code: typedItem.code,
-      buyPrice: typedItem.buyPrice,
-      count: typedItem.count,
-      provider: typedItem.provider?._id || "",
+      _id: typedItem._id || "",
+      name: typedItem.name || "",
+      code: typedItem.code || "",
+      buyPrice: typedItem.buyPrice || 0,
+      count: typedItem.count || 0,
+      provider:
+        typeof typedItem.provider === "object" && typedItem.provider !== null
+          ? (typedItem.provider as { _id: string })._id
+          : (typedItem.provider as string) || "",
       materialType: typedItem.glass ? "glass" : "sideMaterial",
-      glass: typedItem.glass?._id || "",
-      sideMaterial: typedItem.sideMaterial?._id || "",
+      glass: typeof typedItem.glass === "string" ? typedItem.glass : "",
+      sideMaterial:
+        typeof typedItem.sideMaterial === "string"
+          ? typedItem.sideMaterial
+          : "",
       width: typedItem.width || 0,
       height: typedItem.height || 0,
       enterDate: typedItem.enterDate
@@ -309,11 +188,12 @@ const InventoryList: React.FC = () => {
   };
 
   const handleDeleteClick = (item: unknown) => {
-    setItemToDelete(item as any);
+    setItemToDelete(item as InventoryTableData);
     setIsDeleteModalOpen(true);
   };
 
   const confirmDelete = async () => {
+    if (!itemToDelete?._id) return;
     try {
       const response = await fetch(`/api/inventory?id=${itemToDelete._id}`, {
         method: "DELETE",
@@ -324,7 +204,7 @@ const InventoryList: React.FC = () => {
       } else {
         toast.error("خطا در حذف موجودی");
       }
-    } catch (error) {
+    } catch {
       toast.error("خطا در حذف موجودی");
     }
     setIsDeleteModalOpen(false);
@@ -366,7 +246,7 @@ const InventoryList: React.FC = () => {
         }}
       />
 
-      {/* Custom Edit Modal using InventoryEditForm */}
+      {/* Custom Edit Modal using DynamicForm */}
       <AnimatePresence>
         {isCustomEditModalOpen && selectedInventoryItem && (
           <motion.div
@@ -404,10 +284,10 @@ const InventoryList: React.FC = () => {
                       method: "PATCH",
                       fields: [
                         {
-                          name: "id",
+                          name: "_id",
                           type: "hidden",
                           label: "",
-                          defaultValue: selectedInventoryItem._id,
+                          defaultValue: selectedInventoryItem._id || "",
                         },
                         {
                           name: "name",
@@ -522,7 +402,8 @@ const InventoryList: React.FC = () => {
                 تأیید حذف
               </h3>
               <p className="text-gray-600 mb-6">
-                آیا از حذف موجودی "{itemToDelete?.name}" اطمینان دارید؟
+                آیا از حذف موجودی &quot;{itemToDelete?.name}&quot; اطمینان
+                دارید؟
               </p>
               <div className="flex gap-3 justify-end">
                 <button

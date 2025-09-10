@@ -86,8 +86,8 @@ const Staff: React.FC = () => {
         {
           key: "position",
           label: "موقعیت شغلی",
-          render: (value: unknown, row: Record<string, unknown>) =>
-            positionLabels[value as string] || value || "-",
+          render: (value: unknown) =>
+            positionLabels[value as string] || String(value) || "-",
         },
         { key: "workplace", label: "محل کار" },
         { key: "educationLevel", label: "سطح تحصیلات" },
@@ -98,38 +98,36 @@ const Staff: React.FC = () => {
         {
           key: "ismaried",
           label: "وضعیت تاهل",
-          render: (value: unknown, row: Record<string, unknown>) =>
-            value ? "متاهل" : "مجرد",
+          render: (value: unknown) => (value ? "متاهل" : "مجرد"),
         },
         {
           key: "baseSalary",
           label: "حقوق پایه",
-          render: (value: unknown, row: Record<string, unknown>) =>
+          render: (value: unknown) =>
             value ? Number(value).toLocaleString() : "-",
         },
         {
           key: "hourlywage",
           label: "دستمزد ساعتی",
-          render: (value: unknown, row: Record<string, unknown>) =>
+          render: (value: unknown) =>
             value ? Number(value).toLocaleString() : "-",
         },
         {
           key: "housingAllowance",
           label: "کمک مسکن",
-          render: (value: unknown, row: Record<string, unknown>) =>
+          render: (value: unknown) =>
             value ? Number(value).toLocaleString() : "-",
         },
         {
           key: "workerVoucher",
           label: "بن کارگری",
-          render: (value: unknown, row: Record<string, unknown>) =>
+          render: (value: unknown) =>
             value ? Number(value).toLocaleString() : "-",
         },
         {
           key: "isActive",
           label: "وضعیت فعالیت",
-          render: (value: unknown, row: Record<string, unknown>) =>
-            value ? "فعال" : "غیرفعال",
+          render: (value: unknown) => (value ? "فعال" : "غیرفعال"),
         },
       ],
       onClose: handleCloseModal,
@@ -207,8 +205,8 @@ const Staff: React.FC = () => {
       {
         key: "position",
         label: "موقعیت شغلی",
-        render: (value: unknown, row: Record<string, unknown>) =>
-          positionLabels[value as string] || value || "-",
+        render: (value: unknown) =>
+          positionLabels[value as string] || String(value) || "-",
       },
       {
         key: "mobilePhone",
@@ -265,27 +263,26 @@ const Staff: React.FC = () => {
       {
         key: "baseSalary",
         label: "حقوق پایه",
-        render: (value: unknown, row: Record<string, unknown>) =>
+        render: (value: unknown) =>
           value ? Number(value).toLocaleString() : "-",
       },
       {
         key: "annualrewards",
         label: "پاداش سالانه",
-        render: (value: unknown, row: Record<string, unknown>) =>
+        render: (value: unknown) =>
           value ? Number(value).toLocaleString() : "-",
       },
       {
         key: "hourlywage",
         label: "دستمزد ساعتی",
-        render: (value: unknown, row: Record<string, unknown>) =>
+        render: (value: unknown) =>
           value ? Number(value).toLocaleString() : "-",
       },
       {
         key: "isActive",
         label: "وضعیت",
         type: "boolean",
-        render: (value: unknown, row: Record<string, unknown>) =>
-          value ? "فعال" : "غیرفعال",
+        render: (value: unknown) => (value ? "فعال" : "غیرفعال"),
       },
     ],
     actions: {

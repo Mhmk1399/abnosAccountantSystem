@@ -1129,7 +1129,7 @@ export default function ChecksManagement() {
                                 نام شعبه:
                               </span>
                               <span className="text-sm font-medium">
-                                {(selectedCheck.toBank as any)?.branchName ||
+                                {(selectedCheck.toBank as { branchName?: string })?.branchName ||
                                   "-"}
                               </span>
                             </div>
@@ -1138,7 +1138,7 @@ export default function ChecksManagement() {
                                 کد شعبه:
                               </span>
                               <span className="text-sm font-medium">
-                                {(selectedCheck.toBank as any)?.branchCode ||
+                                {(selectedCheck.toBank as { branchCode?: string })?.branchCode ||
                                   "-"}
                               </span>
                             </div>
@@ -1147,7 +1147,7 @@ export default function ChecksManagement() {
                                 شماره حساب:
                               </span>
                               <span className="text-sm font-medium">
-                                {(selectedCheck.toBank as any)?.accountNumber ||
+                                {(selectedCheck.toBank as { accountNumber?: string })?.accountNumber ||
                                   "-"}
                               </span>
                             </div>
@@ -1156,7 +1156,7 @@ export default function ChecksManagement() {
                                 نام صاحب حساب:
                               </span>
                               <span className="text-sm font-medium">
-                                {(selectedCheck.toBank as any)?.ownerName ||
+                                {(selectedCheck.toBank as { ownerName?: string })?.ownerName ||
                                   "-"}
                               </span>
                             </div>

@@ -1,10 +1,33 @@
-import { NextResponse, NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import TransferTransaction from "@/models/transactions/transferTransaction";
 import connect from "@/lib/data";
+import { PipelineStage } from "mongoose";
+
+// Define types for MongoDB query filters
+interface DateFilter {
+  $gte?: Date;
+  $lte?: Date;
+}
+
+interface TransferTransactionFilter {
+  type?: string;
+  paidBy?: string;
+  payTo?: string;
+  transferReference?: { $regex: string; $options: string };
+  transferDate?: DateFilter;
+}
 
 // GET: Retrieve transfer transactions with filtering and pagination
 export const GET = async (req: NextRequest) => {
   await connect();
+
+  // Safely handle req.url
+  if (!req.url) {
+    return NextResponse.json(
+      { error: "Request URL is undefined" },
+      { status: 400 }
+    );
+  }
 
   const { searchParams } = new URL(req.url);
   const id = req.headers.get("id");
@@ -41,7 +64,7 @@ export const GET = async (req: NextRequest) => {
   }
 
   // Build filter query
-  const filter: Record<string, unknown> = {};
+  const filter: TransferTransactionFilter = {};
   if (type && type !== "all") filter.type = type;
   if (paidByFilter) filter.paidBy = paidByFilter;
   if (payToFilter) filter.payTo = payToFilter;
@@ -52,13 +75,17 @@ export const GET = async (req: NextRequest) => {
     filter.transferDate = {};
     if (dateFrom) {
       const fromDate = new Date(dateFrom);
-      fromDate.setHours(0, 0, 0, 0);
-      (filter.transferDate as Record<string, unknown>).$gte = fromDate;
+      if (!isNaN(fromDate.getTime())) {
+        fromDate.setHours(0, 0, 0, 0);
+        filter.transferDate.$gte = fromDate;
+      }
     }
     if (dateTo) {
       const toDate = new Date(dateTo);
-      toDate.setHours(23, 59, 59, 999);
-      (filter.transferDate as Record<string, unknown>).$lte = toDate;
+      if (!isNaN(toDate.getTime())) {
+        toDate.setHours(23, 59, 59, 999);
+        filter.transferDate.$lte = toDate;
+      }
     }
   }
 
@@ -70,7 +97,7 @@ export const GET = async (req: NextRequest) => {
 
     if (bankFilter) {
       // Use aggregation pipeline for bank filtering
-      const pipeline = [
+      const pipeline: PipelineStage[] = [
         {
           $lookup: {
             from: "banks",
@@ -108,7 +135,7 @@ export const GET = async (req: NextRequest) => {
             payTo: { $arrayElemAt: ["$payToData", 0] },
           },
         },
-        { $sort: { createdAt: -1 } },
+        { $sort: { createdAt: -1 as -1 } },
         { $skip: skip },
         { $limit: limit },
       ];
@@ -116,7 +143,7 @@ export const GET = async (req: NextRequest) => {
       transferTransactions = await TransferTransaction.aggregate(pipeline);
 
       // Count total for pagination
-      const countPipeline = [
+      const countPipeline: PipelineStage[] = [
         {
           $lookup: {
             from: "banks",
@@ -197,9 +224,7 @@ export const PATCH = async (req: NextRequest) => {
     const transferTransaction = await TransferTransaction.findByIdAndUpdate(
       id,
       body,
-      {
-        new: true,
-      }
+      { new: true }
     );
     if (!transferTransaction) {
       return NextResponse.json(

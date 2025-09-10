@@ -134,7 +134,7 @@ const DynamicForm: React.FC<DynamicFormProps> = ({
 
     // Filter out empty string values to prevent ObjectId cast errors
     const cleanedData = Object.fromEntries(
-      Object.entries(formState.data).filter(([key, value]) => value !== "")
+      Object.entries(formState.data).filter(([value]) => value !== "")
     );
 
     console.log("Submitting form data:", cleanedData);

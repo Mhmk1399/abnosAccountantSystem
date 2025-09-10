@@ -195,6 +195,7 @@ const Deficit: React.FC = () => {
           const deficitRow = row as DeficitTableRow;
           if (
             typeof deficitRow.staff === "object" &&
+            deficitRow.staff !== null &&
             "name" in deficitRow.staff
           ) {
             return deficitRow.staff.name;
@@ -235,8 +236,7 @@ const Deficit: React.FC = () => {
         filterable: true,
         filterType: "numberRange",
         placeholder: "محدوده مبلغ",
-        render: (value: unknown, row: Record<string, unknown>) =>
-          Number(value).toLocaleString(),
+        render: (value: unknown) => Number(value).toLocaleString(),
       },
       { key: "day", label: "روز", sortable: true },
       { key: "month", label: "ماه", sortable: true },

@@ -1,6 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import connect from "@/lib/data";
 import Inventory from "@/models/inevntory";
+import { PipelineStage } from "mongoose";
+
+// Define types for MongoDB query filters
+interface NumberFilter {
+  $gte?: number;
+  $lte?: number;
+}
+
+interface MatchStage {
+  "providerInfo.code"?: { $regex: string; $options: string };
+  "providerInfo.name"?: { $regex: string; $options: string };
+}
+
+interface PurchaseAmountMatch {
+  purchaseAmount?: NumberFilter;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,7 +35,7 @@ export async function GET(request: NextRequest) {
     const purchaseAmountTo = searchParams.get("purchaseAmountTo");
 
     // Build match stage for filters
-    const matchStage: any = {};
+    const matchStage: MatchStage = {};
     if (code) {
       matchStage["providerInfo.code"] = { $regex: code, $options: "i" };
     }
@@ -28,7 +44,7 @@ export async function GET(request: NextRequest) {
     }
 
     console.log("Starting provider reports aggregation...");
-    const pipeline: any[] = [
+    const pipeline: PipelineStage[] = [
       {
         $lookup: {
           from: "providers",
@@ -68,23 +84,26 @@ export async function GET(request: NextRequest) {
 
     // Add purchase amount range filter after grouping
     if (purchaseAmountFrom || purchaseAmountTo) {
-      const purchaseAmountMatch: any = {};
+      const purchaseAmountMatch: PurchaseAmountMatch = {};
       if (purchaseAmountFrom) {
-        purchaseAmountMatch.purchaseAmount = {
-          $gte: parseFloat(purchaseAmountFrom),
-        };
-      }
-      if (purchaseAmountTo) {
-        if (purchaseAmountMatch.purchaseAmount) {
-          purchaseAmountMatch.purchaseAmount.$lte =
-            parseFloat(purchaseAmountTo);
-        } else {
-          purchaseAmountMatch.purchaseAmount = {
-            $lte: parseFloat(purchaseAmountTo),
-          };
+        const from = parseFloat(purchaseAmountFrom);
+        if (!isNaN(from)) {
+          purchaseAmountMatch.purchaseAmount = { $gte: from };
         }
       }
-      pipeline.push({ $match: purchaseAmountMatch });
+      if (purchaseAmountTo) {
+        const to = parseFloat(purchaseAmountTo);
+        if (!isNaN(to)) {
+          if (purchaseAmountMatch.purchaseAmount) {
+            purchaseAmountMatch.purchaseAmount.$lte = to;
+          } else {
+            purchaseAmountMatch.purchaseAmount = { $lte: to };
+          }
+        }
+      }
+      if (Object.keys(purchaseAmountMatch).length > 0) {
+        pipeline.push({ $match: purchaseAmountMatch });
+      }
     }
 
     pipeline.push(
@@ -96,7 +115,7 @@ export async function GET(request: NextRequest) {
     const providerReports = await Inventory.aggregate(pipeline);
 
     // Get total count with same filters
-    const countPipeline: any[] = [
+    const countPipeline: PipelineStage[] = [
       {
         $lookup: {
           from: "providers",
@@ -120,23 +139,26 @@ export async function GET(request: NextRequest) {
     });
 
     if (purchaseAmountFrom || purchaseAmountTo) {
-      const purchaseAmountMatch: any = {};
+      const purchaseAmountMatch: PurchaseAmountMatch = {};
       if (purchaseAmountFrom) {
-        purchaseAmountMatch.purchaseAmount = {
-          $gte: parseFloat(purchaseAmountFrom),
-        };
-      }
-      if (purchaseAmountTo) {
-        if (purchaseAmountMatch.purchaseAmount) {
-          purchaseAmountMatch.purchaseAmount.$lte =
-            parseFloat(purchaseAmountTo);
-        } else {
-          purchaseAmountMatch.purchaseAmount = {
-            $lte: parseFloat(purchaseAmountTo),
-          };
+        const from = parseFloat(purchaseAmountFrom);
+        if (!isNaN(from)) {
+          purchaseAmountMatch.purchaseAmount = { $gte: from };
         }
       }
-      countPipeline.push({ $match: purchaseAmountMatch });
+      if (purchaseAmountTo) {
+        const to = parseFloat(purchaseAmountTo);
+        if (!isNaN(to)) {
+          if (purchaseAmountMatch.purchaseAmount) {
+            purchaseAmountMatch.purchaseAmount.$lte = to;
+          } else {
+            purchaseAmountMatch.purchaseAmount = { $lte: to };
+          }
+        }
+      }
+      if (Object.keys(purchaseAmountMatch).length > 0) {
+        countPipeline.push({ $match: purchaseAmountMatch });
+      }
     }
 
     countPipeline.push({ $count: "total" });

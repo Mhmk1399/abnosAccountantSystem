@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import connect from "@/lib/data";
 import Inventory from "@/models/inevntory";
+import { PipelineStage } from "mongoose";
+
+// Define types for MongoDB query filters
+interface NumberFilter {
+  $gte?: number;
+  $lte?: number;
+}
+
+interface MatchConditions {
+  $or?: Array<{ [key: string]: { $regex: string; $options: string } }>;
+  buyPrice?: NumberFilter;
+  totalArea?: NumberFilter;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,32 +31,32 @@ export async function GET(request: NextRequest) {
     const totalAreaFilter = searchParams.get("totalArea");
 
     // Build match conditions
-    const matchConditions: any = {};
-    
+    const matchConditions: MatchConditions = {};
+
     if (nameFilter) {
       matchConditions.$or = [
         { "glassInfo.name": { $regex: nameFilter, $options: "i" } },
-        { "sideMaterialInfo.name": { $regex: nameFilter, $options: "i" } }
+        { "sideMaterialInfo.name": { $regex: nameFilter, $options: "i" } },
       ];
     }
-    
+
     if (buyPriceFilter) {
       try {
         const range = JSON.parse(buyPriceFilter);
         if (Array.isArray(range) && range.length === 2) {
           const [min, max] = range.map(Number);
-          if (min > 0 || max > 0) {
+          if ((min > 0 || max > 0) && !isNaN(min) && !isNaN(max)) {
             matchConditions.buyPrice = {};
             if (min > 0) matchConditions.buyPrice.$gte = min;
             if (max > 0) matchConditions.buyPrice.$lte = max;
           }
         }
-      } catch (e) {
-        console.log('Invalid buyPrice filter format');
+      } catch {
+        console.log("Invalid buyPrice filter format");
       }
     }
 
-    const pipeline: any[] = [
+    const pipeline: PipelineStage[] = [
       {
         $lookup: {
           from: "providers",
@@ -72,7 +85,7 @@ export async function GET(request: NextRequest) {
 
     // Add match stage for filters
     if (Object.keys(matchConditions).length > 0) {
-      pipeline.splice(3, 0, { $match: matchConditions });
+      pipeline.splice(3, 0, { $match: matchConditions } as PipelineStage);
     }
 
     pipeline.push(
@@ -80,8 +93,10 @@ export async function GET(request: NextRequest) {
         $addFields: {
           usageCount: { $ifNull: ["$usedCount", 0] },
           lastUsedDate: null,
-          remainingStock: { $subtract: ["$count", { $ifNull: ["$usedCount", 0] }] }
-        }
+          remainingStock: {
+            $subtract: ["$count", { $ifNull: ["$usedCount", 0] }],
+          },
+        },
       },
       {
         $addFields: {
@@ -106,7 +121,6 @@ export async function GET(request: NextRequest) {
               else: 0,
             },
           },
-
           type: {
             $cond: {
               if: { $gt: [{ $size: "$glassInfo" }, 0] },
@@ -156,15 +170,17 @@ export async function GET(request: NextRequest) {
         const range = JSON.parse(totalAreaFilter);
         if (Array.isArray(range) && range.length === 2) {
           const [min, max] = range.map(Number);
-          if (min > 0 || max > 0) {
-            const areaMatch: any = {};
+          if ((min > 0 || max > 0) && !isNaN(min) && !isNaN(max)) {
+            const areaMatch: NumberFilter = {};
             if (min > 0) areaMatch.$gte = min;
             if (max > 0) areaMatch.$lte = max;
-            pipeline.push({ $match: { totalArea: areaMatch } });
+            pipeline.push({
+              $match: { totalArea: areaMatch },
+            } as PipelineStage);
           }
         }
-      } catch (e) {
-        console.log('Invalid totalArea filter format');
+      } catch {
+        console.log("Invalid totalArea filter format");
       }
     }
 
@@ -178,7 +194,10 @@ export async function GET(request: NextRequest) {
 
     // Get total count with filters
     const countPipeline = pipeline.slice(0, -3); // Remove sort, skip, limit
-    const countResult = await Inventory.aggregate([...countPipeline, { $count: "total" }]);
+    const countResult = await Inventory.aggregate([
+      ...countPipeline,
+      { $count: "total" },
+    ]);
     const totalCount = countResult.length > 0 ? countResult[0].total : 0;
     const totalPages = Math.ceil(totalCount / limit);
 

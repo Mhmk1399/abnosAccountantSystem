@@ -6,10 +6,12 @@ import DynamicModal from "@/components/global/DynamicModal";
 import { TableConfig } from "@/types/tables";
 import { ModalConfig } from "@/components/global/DynamicModal";
 import toast from "react-hot-toast";
-import type { Rollcall } from "@/types/finalTypes";
+import type { Rollcall, Staff } from "@/types/finalTypes";
 
 export default function Rollcall() {
-  const [selectedRollcall, setSelectedRollcall] = useState<Rollcall | null>(null);
+  const [selectedRollcall, setSelectedRollcall] = useState<Rollcall | null>(
+    null
+  );
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalConfig, setModalConfig] = useState<ModalConfig>({
     title: "",
@@ -20,13 +22,15 @@ export default function Rollcall() {
   const fetchData = async () => {
     const [staffRes, rollcallRes] = await Promise.all([
       fetch("/api/staff"),
-      fetch("/api/rollcall")
+      fetch("/api/rollcall"),
     ]);
     const staffData = await staffRes.json();
     const rollcallData = await rollcallRes.json();
-    
-    const combined = (staffData.staffs || []).map(staff => {
-      const rollcall = (rollcallData.rollcalls || []).find(r => r.staff._id === staff._id);
+
+    const combined = (staffData.staffs || []).map((staff: Staff) => {
+      const rollcall = (rollcallData.rollcalls || []).find(
+        (r: Rollcall) => r.staff._id === staff._id
+      );
       return {
         _id: rollcall?._id || staff._id,
         staff: { _id: staff._id, name: staff.name },
@@ -34,7 +38,7 @@ export default function Rollcall() {
         status: rollcall?.status,
         entranceTime: rollcall?.entranceTime,
         exitTime: rollcall?.exitTime,
-        description: rollcall?.description
+        description: rollcall?.description,
       };
     });
     setData(combined);
@@ -183,13 +187,14 @@ export default function Rollcall() {
         label: "تاریخ",
         type: "date",
         sortable: true,
-        render: (value) => value ? new Date(value as string).toLocaleDateString("fa-IR") : "--"
+        render: (value: unknown) =>
+          value ? new Date(value as string).toLocaleDateString("fa-IR") : "--",
       },
       {
         key: "status",
         label: "وضعیت",
         sortable: true,
-        render: (value) => {
+        render: (value: unknown) => {
           if (!value) return "--";
           switch (value) {
             case "present":
@@ -207,13 +212,13 @@ export default function Rollcall() {
         key: "entranceTime",
         label: "زمان ورود",
         type: "text",
-        render: (value) => value || "--"
+        render: (value: unknown) => (value ? String(value) : "--"),
       },
       {
         key: "exitTime",
         label: "زمان خروج",
         type: "text",
-        render: (value) => value || "--"
+        render: (value: unknown) => (value ? String(value) : "--"),
       },
     ],
     actions: { view: true, edit: true, delete: true },
@@ -221,8 +226,6 @@ export default function Rollcall() {
     onEdit: handleEdit,
     onDelete: handleDelete,
   };
-
-
 
   return (
     <div className="container mx-auto py-8" dir="rtl">

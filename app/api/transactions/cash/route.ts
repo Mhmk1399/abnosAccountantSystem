@@ -1,6 +1,26 @@
-import { NextResponse, NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import CashTransaction from "@/models/transactions/cashTransaction";
 import connect from "@/lib/data";
+
+// Define types for MongoDB query filters
+interface NumberFilter {
+  $gte?: number;
+  $lte?: number;
+}
+
+interface DateFilter {
+  $gte?: Date;
+  $lte?: Date;
+}
+
+interface CashTransactionFilter {
+  paidBy?: string;
+  payTo?: string;
+  type?: string;
+  description?: { $regex: string; $options: string };
+  amount?: NumberFilter;
+  transactionDate?: DateFilter;
+}
 
 // GET: Retrieve cash transactions with pagination and filtering
 export const GET = async (req: NextRequest) => {
@@ -13,8 +33,8 @@ export const GET = async (req: NextRequest) => {
   if (id) {
     try {
       const cashTransaction = await CashTransaction.findById(id)
-        .populate('paidBy', 'name ')
-        .populate('payTo', 'name ');
+        .populate("paidBy", "name")
+        .populate("payTo", "name");
       if (!cashTransaction) {
         return NextResponse.json(
           { error: "Cash transaction not found" },
@@ -31,21 +51,28 @@ export const GET = async (req: NextRequest) => {
   }
 
   // Get query parameters for pagination and filtering
-  const { searchParams } = new URL(req.url);
-  const page = parseInt(searchParams.get('page') || '1');
-  const limit = parseInt(searchParams.get('limit') || '10');
-  const paidByFilter = searchParams.get('paidByFilter');
-  const payToFilter = searchParams.get('payToFilter');
-  const typeFilter = searchParams.get('typeFilter');
-  const descriptionFilter = searchParams.get('descriptionFilter');
-  const amountFromFilter = searchParams.get('amountFromFilter');
-  const amountToFilter = searchParams.get('amountToFilter');
-  const dateFrom = searchParams.get('dateFrom');
-  const dateTo = searchParams.get('dateTo');
-
   try {
+    // Safely handle req.url
+    if (!req.url) {
+      return NextResponse.json(
+        { error: "Request URL is undefined" },
+        { status: 400 }
+      );
+    }
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const paidByFilter = searchParams.get("paidByFilter");
+    const payToFilter = searchParams.get("payToFilter");
+    const typeFilter = searchParams.get("typeFilter");
+    const descriptionFilter = searchParams.get("descriptionFilter");
+    const amountFromFilter = searchParams.get("amountFromFilter");
+    const amountToFilter = searchParams.get("amountToFilter");
+    const dateFrom = searchParams.get("dateFrom");
+    const dateTo = searchParams.get("dateTo");
+
     // Build filter object
-    const filter: any = {};
+    const filter: CashTransactionFilter = {};
 
     if (paidByFilter) {
       filter.paidBy = paidByFilter;
@@ -60,16 +87,22 @@ export const GET = async (req: NextRequest) => {
     }
 
     if (descriptionFilter) {
-      filter.description = { $regex: descriptionFilter, $options: 'i' };
+      filter.description = { $regex: descriptionFilter, $options: "i" };
     }
 
     if (amountFromFilter || amountToFilter) {
       filter.amount = {};
       if (amountFromFilter) {
-        filter.amount.$gte = parseFloat(amountFromFilter);
+        const from = parseFloat(amountFromFilter);
+        if (!isNaN(from)) {
+          filter.amount.$gte = from;
+        }
       }
       if (amountToFilter) {
-        filter.amount.$lte = parseFloat(amountToFilter);
+        const to = parseFloat(amountToFilter);
+        if (!isNaN(to)) {
+          filter.amount.$lte = to;
+        }
       }
     }
 
@@ -77,13 +110,17 @@ export const GET = async (req: NextRequest) => {
       filter.transactionDate = {};
       if (dateFrom) {
         const fromDate = new Date(dateFrom);
-        fromDate.setHours(0, 0, 0, 0);
-        filter.transactionDate.$gte = fromDate;
+        if (!isNaN(fromDate.getTime())) {
+          fromDate.setHours(0, 0, 0, 0);
+          filter.transactionDate.$gte = fromDate;
+        }
       }
       if (dateTo) {
         const toDate = new Date(dateTo);
-        toDate.setHours(23, 59, 59, 999);
-        filter.transactionDate.$lte = toDate;
+        if (!isNaN(toDate.getTime())) {
+          toDate.setHours(23, 59, 59, 999);
+          filter.transactionDate.$lte = toDate;
+        }
       }
     }
 
@@ -96,8 +133,8 @@ export const GET = async (req: NextRequest) => {
 
     // Fetch cash transactions with pagination and filtering
     const cashTransactions = await CashTransaction.find(filter)
-      .populate('paidBy', 'name code')
-      .populate('payTo', 'name code')
+      .populate("paidBy", "name code")
+      .populate("payTo", "name code")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
@@ -151,8 +188,8 @@ export const PATCH = async (req: NextRequest) => {
     const cashTransaction = await CashTransaction.findByIdAndUpdate(id, body, {
       new: true,
     })
-      .populate('paidBy', 'name code')
-      .populate('payTo', 'name code');
+      .populate("paidBy", "name code")
+      .populate("payTo", "name code");
     if (!cashTransaction) {
       return NextResponse.json(
         { error: "Cash transaction not found" },
@@ -188,7 +225,9 @@ export const DELETE = async (req: NextRequest) => {
         { status: 404 }
       );
     }
-    return NextResponse.json({ message: "Cash transaction deleted successfully" });
+    return NextResponse.json({
+      message: "Cash transaction deleted successfully",
+    });
   } catch (error) {
     return NextResponse.json(
       { error: "An error occurred: " + error },

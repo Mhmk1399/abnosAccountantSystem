@@ -1,34 +1,49 @@
 import connect from "@/lib/data";
 import { NextResponse, NextRequest } from "next/server";
 import FiscalYear from "@/models/fiscalYear";
+interface DateFilter {
+  $gte?: Date;
+  $lte?: Date;
+}
 
+interface NumberFilter {
+  $gte?: number;
+  $lte?: number;
+}
+
+interface FiscalYearFilter {
+  startDate?: Date | DateFilter;
+  endDate?: Date | DateFilter;
+  taxRate?: number | NumberFilter;
+  name?: string | { $regex: string; $options?: string };
+  isActive?: boolean;
+}
 // GET: Retrieve all fiscal years with pagination and filtering
 export const GET = async (req: NextRequest) => {
   await connect();
   try {
     const { searchParams } = new URL(req.url);
-    
+
     // Pagination parameters
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
     const skip = (page - 1) * limit;
 
     // Filter parameters
-    const startDateFrom = searchParams.get('startDateFrom');
-    const startDateTo = searchParams.get('startDateTo');
-    const endDateFrom = searchParams.get('endDateFrom');
-    const endDateTo = searchParams.get('endDateTo');
-    const taxRateMin = searchParams.get('taxRateMin');
-    const taxRateMax = searchParams.get('taxRateMax');
-    const name = searchParams.get('name');
-    const isActive = searchParams.get('isActive');
+    const startDateFrom = searchParams.get("startDateFrom");
+    const startDateTo = searchParams.get("startDateTo");
+    const endDateFrom = searchParams.get("endDateFrom");
+    const endDateTo = searchParams.get("endDateTo");
+    const taxRateMin = searchParams.get("taxRateMin");
+    const taxRateMax = searchParams.get("taxRateMax");
+    const name = searchParams.get("name");
+    const isActive = searchParams.get("isActive");
 
     // Build filter object
-    const filter: any = {};
-
+    const filter: FiscalYearFilter = {};
     // Name filter (case-insensitive partial match)
     if (name) {
-      filter.name = { $regex: name, $options: 'i' };
+      filter.name = { $regex: name, $options: "i" };
     }
 
     // Start date range filter
@@ -45,7 +60,6 @@ export const GET = async (req: NextRequest) => {
         filter.startDate.$lte = toDate;
       }
     }
-
     // End date range filter
     if (endDateFrom || endDateTo) {
       filter.endDate = {};
@@ -73,8 +87,8 @@ export const GET = async (req: NextRequest) => {
     }
 
     // Active status filter
-    if (isActive !== null && isActive !== undefined && isActive !== '') {
-      filter.isActive = isActive === 'true';
+    if (isActive !== null && isActive !== undefined && isActive !== "") {
+      filter.isActive = isActive === "true";
     }
 
     // Get total count for pagination
@@ -94,12 +108,12 @@ export const GET = async (req: NextRequest) => {
       totalItems,
       itemsPerPage: limit,
       hasNextPage: page < totalPages,
-      hasPrevPage: page > 1
+      hasPrevPage: page > 1,
     };
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       data: fiscalYears,
-      pagination 
+      pagination,
     });
   } catch (error) {
     console.error("Error fetching fiscal years:", error);

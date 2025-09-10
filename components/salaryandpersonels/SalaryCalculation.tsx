@@ -280,7 +280,7 @@ const SalaryCalculation: React.FC = () => {
       sortable: false,
       render: (_, row) => (
         <button
-          onClick={() => openModal(row)}
+          onClick={() => openModal(row as unknown as SalaryData)}
           className="text-blue-600 hover:text-blue-800"
         >
           <svg
@@ -591,7 +591,7 @@ const SalaryCalculation: React.FC = () => {
                           {column.render
                             ? column.render(
                                 row[column.key as keyof SalaryData],
-                                row
+                                row as unknown as Record<string, unknown>
                               )
                             : row[column.key as keyof SalaryData]}
                         </td>
