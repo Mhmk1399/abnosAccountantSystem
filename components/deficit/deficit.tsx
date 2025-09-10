@@ -145,7 +145,7 @@ export default function Deficit() {
         label: "مبلغ (تومان)",
         sortable: true,
         render: (value) => {
-          return value ? value.toLocaleString("fa-IR") : "-";
+          return value ? Number(value).toLocaleString() : "-";
         },
       },
       {

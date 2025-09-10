@@ -135,7 +135,7 @@ export const GET = async (req: NextRequest) => {
             payTo: { $arrayElemAt: ["$payToData", 0] },
           },
         },
-        { $sort: { createdAt: -1 } },
+        { $sort: { createdAt: -1 as const } },
         { $skip: skip },
         { $limit: limit },
       ];

@@ -54,6 +54,7 @@ export interface ModalConfig {
   customContent?: React.ReactNode;
   confirmText?: string;
   cancelText?: string;
+  initialData?: Record<string, unknown>;
 }
 
 interface DynamicModalProps {

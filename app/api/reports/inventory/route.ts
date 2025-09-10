@@ -12,7 +12,38 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "5");
     const skip = (page - 1) * limit;
 
-    const inventoryReports = await Inventory.aggregate([
+    // Get filter parameters
+    const nameFilter = searchParams.get("name");
+    const buyPriceFilter = searchParams.get("buyPrice");
+    const totalAreaFilter = searchParams.get("totalArea");
+
+    // Build match conditions
+    const matchConditions: any = {};
+    
+    if (nameFilter) {
+      matchConditions.$or = [
+        { "glassInfo.name": { $regex: nameFilter, $options: "i" } },
+        { "sideMaterialInfo.name": { $regex: nameFilter, $options: "i" } }
+      ];
+    }
+    
+    if (buyPriceFilter) {
+      try {
+        const range = JSON.parse(buyPriceFilter);
+        if (Array.isArray(range) && range.length === 2) {
+          const [min, max] = range.map(Number);
+          if (min > 0 || max > 0) {
+            matchConditions.buyPrice = {};
+            if (min > 0) matchConditions.buyPrice.$gte = min;
+            if (max > 0) matchConditions.buyPrice.$lte = max;
+          }
+        }
+      } catch (e) {
+        console.log('Invalid buyPrice filter format');
+      }
+    }
+
+    const pipeline: any[] = [
       {
         $lookup: {
           from: "providers",
@@ -37,6 +68,14 @@ export async function GET(request: NextRequest) {
           as: "sideMaterialInfo",
         },
       },
+    ];
+
+    // Add match stage for filters
+    if (Object.keys(matchConditions).length > 0) {
+      pipeline.splice(3, 0, { $match: matchConditions });
+    }
+
+    pipeline.push(
       {
         $addFields: {
           usageCount: { $ifNull: ["$usedCount", 0] },
@@ -108,13 +147,39 @@ export async function GET(request: NextRequest) {
           type: { $literal: "inventory" },
         },
       },
+      { $sort: { enterDate: -1 } }
+    );
+
+    // Add totalArea filter after projection
+    if (totalAreaFilter) {
+      try {
+        const range = JSON.parse(totalAreaFilter);
+        if (Array.isArray(range) && range.length === 2) {
+          const [min, max] = range.map(Number);
+          if (min > 0 || max > 0) {
+            const areaMatch: any = {};
+            if (min > 0) areaMatch.$gte = min;
+            if (max > 0) areaMatch.$lte = max;
+            pipeline.push({ $match: { totalArea: areaMatch } });
+          }
+        }
+      } catch (e) {
+        console.log('Invalid totalArea filter format');
+      }
+    }
+
+    pipeline.push(
       { $sort: { enterDate: -1 } },
       { $skip: skip },
-      { $limit: limit },
-    ]);
+      { $limit: limit }
+    );
 
-    // Get total count
-    const totalCount = await Inventory.countDocuments();
+    const inventoryReports = await Inventory.aggregate(pipeline);
+
+    // Get total count with filters
+    const countPipeline = pipeline.slice(0, -3); // Remove sort, skip, limit
+    const countResult = await Inventory.aggregate([...countPipeline, { $count: "total" }]);
+    const totalCount = countResult.length > 0 ? countResult[0].total : 0;
     const totalPages = Math.ceil(totalCount / limit);
 
     return NextResponse.json({

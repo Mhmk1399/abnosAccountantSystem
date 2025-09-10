@@ -5,9 +5,9 @@ import {
 } from "@/middleware/invoice";
 import connect from "@/lib/data";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   await connect();
-  return getInvoices();
+  return getInvoices(req);
 }
 
 

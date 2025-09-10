@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import DynamicTable from "@/components/global/DynamicTable";
 import DynamicForm from "@/components/global/DynamicForm";
 import { FormConfig } from "@/types/form";
@@ -16,7 +16,6 @@ const InventoryList: React.FC = () => {
     glasses,
     sideMaterials,
     inventoryError,
-    transformDataForEdit,
     handleEditSuccess,
     fetchFormOptions,
   } = useInventoryData();
@@ -24,6 +23,9 @@ const InventoryList: React.FC = () => {
   const [isCustomEditModalOpen, setIsCustomEditModalOpen] = useState(false);
   const [selectedInventoryItem, setSelectedInventoryItem] =
     useState<InventoryFormData | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any>(null);
+  const tableRef = useRef<{ refreshData: () => void }>(null);
   const columns: TableColumn[] = [
     {
       key: "name",
@@ -302,7 +304,31 @@ const InventoryList: React.FC = () => {
   const handleCustomEditSuccess = () => {
     closeCustomEditModal();
     handleEditSuccess();
+    tableRef.current?.refreshData();
     toast.success("موجودی با موفقیت بروزرسانی شد");
+  };
+
+  const handleDeleteClick = (item: unknown) => {
+    setItemToDelete(item as any);
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    try {
+      const response = await fetch(`/api/inventory?id=${itemToDelete._id}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        tableRef.current?.refreshData();
+        toast.success("موجودی با موفقیت حذف شد");
+      } else {
+        toast.error("خطا در حذف موجودی");
+      }
+    } catch (error) {
+      toast.error("خطا در حذف موجودی");
+    }
+    setIsDeleteModalOpen(false);
+    setItemToDelete(null);
   };
 
   useEffect(() => {
@@ -321,6 +347,7 @@ const InventoryList: React.FC = () => {
     <div className="p-6">
       <h2 className="text-2xl text-black font-bold my-4">لیست موجودی</h2>
       <DynamicTable
+        ref={tableRef}
         config={{
           title: "لیست موجودی",
           endpoint: "/api/inventory",
@@ -328,10 +355,11 @@ const InventoryList: React.FC = () => {
           enableFilters: true,
           actions: {
             edit: true,
-            delete: false,
+            delete: true,
             view: false,
           },
           onEdit: handleEditClick,
+          onDelete: handleDeleteClick,
           responseHandler: (response) => {
             return response.inventory || [];
           },
@@ -465,8 +493,50 @@ const InventoryList: React.FC = () => {
                       onError: () => toast.error("خطا در بروزرسانی موجودی"),
                     } as FormConfig
                   }
-                  initialData={selectedInventoryItem || null}
+                  initialData={selectedInventoryItem}
                 />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {isDeleteModalOpen && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsDeleteModalOpen(false)}
+          >
+            <motion.div
+              className="bg-white rounded-lg shadow-xl p-6 max-w-md mx-4"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                تأیید حذف
+              </h3>
+              <p className="text-gray-600 mb-6">
+                آیا از حذف موجودی "{itemToDelete?.name}" اطمینان دارید؟
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  انصراف
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
+                  حذف
+                </button>
               </div>
             </motion.div>
           </motion.div>

@@ -1,45 +1,151 @@
 import Customer from "@/models/customer";
 import Glass from "@/models/glass";
-import GlassTreatment from "@/models/glassTreatment";
 import Invoice from "@/models/invoice";
 import Priority from "@/models/priority";
 import SideMaterial from "@/models/sideMaterial";
 import Design from "@/models/design";
 import { NextRequest, NextResponse } from "next/server";
-import { findFixedAccountByDetailedId } from "@/services/accountService";
 import { createDailyBookEntryForInvoice } from "@/services/dailyBookService";
 
 // Get all invoices with pagination and optional filtering
-export async function getInvoices() {
+export async function getInvoices(req: NextRequest) {
   try {
-    const invoices = await Invoice.find()
-      .populate({
-        path: "customer",
-        model: Customer,
-      })
-      .populate({
-        path: "sideMaterial",
-        model: SideMaterial,
-      })
-      .populate({
-        path: "priority",
-        model: Priority,
-      })
-      // .populate({
-      //   path: "designNumber",
-      //   model: Design,
-      // })
-      .populate({
-        path: "layers.glass",
-        model: Glass,
-      })
-      // .populate({
-      //   path: "layers.treatments.treatment",
-      //   model: GlassTreatment,
-      // });
-    const test=await findFixedAccountByDetailedId('68906cd884535feb0ba9ef0e')
-    console.log(test,"test")
-    return NextResponse.json(invoices);
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const skip = (page - 1) * limit;
+
+    // Build filter conditions
+    const filterConditions: any = {};
+    const customerName = searchParams.get("customer.name");
+    const status = searchParams.get("status");
+    const code = searchParams.get("code");
+    const priceFilter = searchParams.get("price");
+
+    if (status) filterConditions.status = status;
+    if (code) filterConditions.code = { $regex: code, $options: "i" };
+    
+    if (priceFilter) {
+      try {
+        const range = JSON.parse(priceFilter);
+        if (Array.isArray(range) && range.length === 2) {
+          const [min, max] = range.map(Number);
+          if (min > 0 || max > 0) {
+            filterConditions.price = {};
+            if (min > 0) filterConditions.price.$gte = min;
+            if (max > 0) filterConditions.price.$lte = max;
+          }
+        }
+      } catch (e) {
+        console.log('Invalid price filter format');
+      }
+    }
+    
+    // Handle customer name filtering - need to use aggregation for populated fields
+    let useAggregation = false;
+    const aggregationPipeline: any[] = [];
+    
+    if (customerName) {
+      useAggregation = true;
+    }
+
+    let invoices;
+    
+    if (useAggregation) {
+      // Use aggregation for customer name filtering
+      aggregationPipeline.push(
+        { $match: filterConditions },
+        {
+          $lookup: {
+            from: "customers",
+            localField: "customer",
+            foreignField: "_id",
+            as: "customer"
+          }
+        },
+        { $unwind: { path: "$customer", preserveNullAndEmptyArrays: true } }
+      );
+      
+      if (customerName) {
+        aggregationPipeline.push({
+          $match: {
+            "customer.name": { $regex: customerName, $options: "i" }
+          }
+        });
+      }
+      
+      aggregationPipeline.push(
+        {
+          $lookup: {
+            from: "sidematerials",
+            localField: "sideMaterial",
+            foreignField: "_id",
+            as: "sideMaterial"
+          }
+        },
+        { $unwind: { path: "$sideMaterial", preserveNullAndEmptyArrays: true } },
+        {
+          $lookup: {
+            from: "priorities",
+            localField: "priority",
+            foreignField: "_id",
+            as: "priority"
+          }
+        },
+        { $unwind: { path: "$priority", preserveNullAndEmptyArrays: true } },
+        { $skip: skip },
+        { $limit: limit }
+      );
+      
+      invoices = await Invoice.aggregate(aggregationPipeline);
+    } else {
+      invoices = await Invoice.find(filterConditions)
+        .skip(skip)
+        .limit(limit)
+        .populate({
+          path: "customer",
+          model: Customer,
+        })
+        .populate({
+          path: "sideMaterial",
+          model: SideMaterial,
+        })
+        .populate({
+          path: "priority",
+          model: Priority,
+        })
+        .populate({
+          path: "layers.glass",
+          model: Glass,
+        });
+    }
+    // .populate({
+    //   path: "layers.treatments.treatment",
+    //   model: GlassTreatment,
+    // });
+    // Get total count for pagination
+    let totalCount;
+    if (useAggregation && customerName) {
+      const countPipeline = aggregationPipeline.slice(0, -2); // Remove skip and limit
+      countPipeline.push({ $count: "total" });
+      const countResult = await Invoice.aggregate(countPipeline);
+      totalCount = countResult.length > 0 ? countResult[0].total : 0;
+    } else {
+      totalCount = await Invoice.countDocuments(filterConditions);
+    }
+    const totalPages = Math.ceil(totalCount / limit);
+
+    return NextResponse.json({
+      invoices,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems: totalCount,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    });
   } catch (error) {
     console.error("Error fetching invoices:", error);
     return NextResponse.json(
@@ -121,14 +227,17 @@ export async function updateInvoice(req: NextRequest) {
       .populate({
         path: "layers.glass",
         model: Glass,
-      })
-      // .populate({
-      //   path: "layers.treatment",
-      //   model: GlassTreatment,
-      // });
+      });
+    // .populate({
+    //   path: "layers.treatment",
+    //   model: GlassTreatment,
+    // });
 
     // Create daily book entry when status changes from pending to in progress
-    if (existingInvoice.status === "pending" && updateData.status === "in progress") {
+    if (
+      existingInvoice.status === "pending" &&
+      updateData.status === "in progress"
+    ) {
       try {
         await createDailyBookEntryForInvoice(updatedInvoice);
       } catch (error) {

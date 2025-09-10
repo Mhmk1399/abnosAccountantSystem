@@ -310,6 +310,7 @@ export interface InventoryFormData {
   width?: number;
   height?: number;
   enterDate: string;
+  [key: string]: string | number | boolean | Date | string[] | File | undefined;
 }
 export interface InventoryEditFormProps {
   inventoryId: string;

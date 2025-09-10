@@ -46,7 +46,7 @@ export default function Rollcall() {
 
   const tableRef = useRef<{ refreshData: () => void }>(null);
 
-  const handleView = (rollcall: CombinedStaffRollcall) => {
+  const handleView = (rollcall: Rollcall) => {
     setSelectedRollcall(rollcall);
     setModalConfig({
       title: `مشاهده اطلاعات حضور و غیاب`,
@@ -80,7 +80,7 @@ export default function Rollcall() {
     setIsModalOpen(true);
   };
 
-  const handleEdit = (rollcall: CombinedStaffRollcall) => {
+  const handleEdit = (rollcall: Rollcall) => {
     // Create a modified rollcall object with staff ID extracted
 
     setSelectedRollcall(rollcall);
@@ -142,7 +142,7 @@ export default function Rollcall() {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (rollcall: CombinedStaffRollcall) => {
+  const handleDelete = (rollcall: Rollcall) => {
     setSelectedRollcall(rollcall);
     setModalConfig({
       title: `حذف رکورد حضور و غیاب`,

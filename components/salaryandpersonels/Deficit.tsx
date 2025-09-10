@@ -5,7 +5,6 @@ import DynamicTable from "@/components/global/DynamicTable";
 import { TableConfig } from "@/types/tables";
 import { HiOutlineUserAdd } from "react-icons/hi";
 import DynamicModal, { ModalConfig } from "@/components/global/DynamicModal";
-import FormattedNumberInput from "@/utils/FormattedNumberInput";
 import toast from "react-hot-toast";
 
 export interface Deficit extends Record<string, unknown> {
@@ -22,7 +21,7 @@ export interface Deficit extends Record<string, unknown> {
 }
 
 // Type for when staff is populated from API
-interface DeficitWithPopulatedStaff extends Omit<Deficit, 'staff'> {
+interface DeficitWithPopulatedStaff extends Omit<Deficit, "staff"> {
   staff: { _id: string; name: string; title: string };
 }
 
@@ -61,7 +60,7 @@ export interface Staff {
 }
 
 const Deficit: React.FC = () => {
-  const [currentView, setCurrentView] = useState<'staff' | 'deficits'>('staff');
+  const [currentView, setCurrentView] = useState<"staff" | "deficits">("staff");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDeficit, setSelectedDeficit] = useState<Deficit | null>(null);
   const [modalConfig, setModalConfig] = useState<ModalConfig | null>(null);
@@ -70,7 +69,6 @@ const Deficit: React.FC = () => {
   const [staffOptions, setStaffOptions] = useState<
     { value: string; label: string }[]
   >([]);
-  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
 
   useEffect(() => {
     const fetchStaff = async () => {
@@ -99,7 +97,6 @@ const Deficit: React.FC = () => {
   };
 
   const handleAddDeficitForStaff = (staff: Staff) => {
-    setSelectedStaff(staff);
     setSelectedDeficit(null);
     setSelectedItemId(null);
     setModalConfig(
@@ -183,20 +180,27 @@ const Deficit: React.FC = () => {
     responseHandler: (res) => res.deficit,
     title: "لیست کسورات",
     description: "مدیریت کسورات",
+    enableFilters: true,
     columns: [
       {
         key: "staff.name",
         label: "کارمند",
         sortable: true,
+        filterable: true,
+        filterType: "select",
+        filterKey: "staff.name",
+        filterOptions: staffOptions,
+        placeholder: "انتخاب کارمند",
         render: (_value: unknown, row: unknown): React.ReactNode => {
           const deficitRow = row as DeficitTableRow;
-          // Check if staff is populated object or just ID
-          if (typeof deficitRow.staff === "object" && 'name' in deficitRow.staff) {
+          if (
+            typeof deficitRow.staff === "object" &&
+            "name" in deficitRow.staff
+          ) {
             return deficitRow.staff.name;
           }
-          // If staff is just ID, find name from staffOptions
           const staffOption = staffOptions.find(
-            (opt) => opt.value === deficitRow.staff as string
+            (opt) => opt.value === (deficitRow.staff as string)
           );
           return staffOption?.label || "-";
         },
@@ -205,6 +209,14 @@ const Deficit: React.FC = () => {
         key: "type",
         label: "نوع",
         sortable: true,
+        filterable: true,
+        filterType: "select",
+        filterOptions: [
+          { value: "buy glass", label: "خرید شیشه" },
+          { value: "punishment", label: "جریمه" },
+          { value: "help", label: "مساعده" },
+        ],
+        placeholder: "انتخاب نوع",
         render: (value: unknown): React.ReactNode => {
           const typeMap = {
             "buy glass": "خرید شیشه",
@@ -220,7 +232,11 @@ const Deficit: React.FC = () => {
         key: "amount",
         label: "مبلغ",
         sortable: true,
-        render: (value) => Number(value).toLocaleString(),
+        filterable: true,
+        filterType: "numberRange",
+        placeholder: "محدوده مبلغ",
+        render: (value: unknown, row: Record<string, unknown>) =>
+          Number(value).toLocaleString(),
       },
       { key: "day", label: "روز", sortable: true },
       { key: "month", label: "ماه", sortable: true },
@@ -241,7 +257,7 @@ const Deficit: React.FC = () => {
     onClose: () => void
   ): ModalConfig => {
     const now = new Date();
-    const persianDate = now.toLocaleDateString('fa-IR-u-nu-latn').split('/');
+    const persianDate = now.toLocaleDateString("fa-IR-u-nu-latn").split("/");
     return {
       title: `افزودن کسورات برای ${staff.name}`,
       endpoint: `/api/salaryandpersonels/deficits`,
@@ -267,13 +283,19 @@ const Deficit: React.FC = () => {
             { value: "help", label: "مساعده" },
           ],
         },
-        { key: "amount", label: "مبلغ", type: "formatted-number", required: true, placeholder: "مبلغ کسورات" },
+        {
+          key: "amount",
+          label: "مبلغ",
+          type: "formatted-number",
+          required: true,
+          placeholder: "مبلغ کسورات",
+        },
         {
           key: "description",
           label: "توضیحات",
           type: "textarea",
           required: true,
-          placeholder: "توضیحات کسورات را وارد کنید"
+          placeholder: "توضیحات کسورات را وارد کنید",
         },
         { key: "day", label: "", type: "hidden" },
         { key: "month", label: "", type: "hidden" },
@@ -314,16 +336,40 @@ const Deficit: React.FC = () => {
           { value: "help", label: "مساعده" },
         ],
       },
-      { key: "amount", label: "مبلغ", type: "formatted-number", required: true, placeholder: "مبلغ کسورات" },
-      { key: "month", label: "ماه", type: "number", required: true, placeholder: "ماه (1-12)" },
-      { key: "year", label: "سال", type: "number", required: true, placeholder: "سال (مثال: 1403)" },
-      { key: "day", label: "روز", type: "number", required: true, placeholder: "روز (1-31)" },
+      {
+        key: "amount",
+        label: "مبلغ",
+        type: "formatted-number",
+        required: true,
+        placeholder: "مبلغ کسورات",
+      },
+      {
+        key: "month",
+        label: "ماه",
+        type: "number",
+        required: true,
+        placeholder: "ماه (1-12)",
+      },
+      {
+        key: "year",
+        label: "سال",
+        type: "number",
+        required: true,
+        placeholder: "سال (مثال: 1403)",
+      },
+      {
+        key: "day",
+        label: "روز",
+        type: "number",
+        required: true,
+        placeholder: "روز (1-31)",
+      },
       {
         key: "description",
         label: "توضیحات",
         type: "textarea",
         required: true,
-        placeholder: "توضیحات کسورات را وارد کنید"
+        placeholder: "توضیحات کسورات را وارد کنید",
       },
     ],
     onSuccess,
@@ -334,11 +380,37 @@ const Deficit: React.FC = () => {
     responseHandler: (res) => res.staff,
     title: "لیست کارمندان",
     description: "افزودن کسورات برای کارمندان",
+    enableFilters: true,
     columns: [
-      { key: "name", label: "نام", sortable: true },
+      {
+        key: "name",
+        label: "نام",
+        sortable: true,
+        filterable: true,
+        filterType: "text",
+        placeholder: "جستجو نام",
+      },
       { key: "title", label: "عنوان", sortable: true },
-      { key: "position", label: "سمت", sortable: true },
-      { key: "mobilePhone", label: "موبایل" },
+      {
+        key: "position",
+        label: "سمت",
+        sortable: true,
+        filterable: true,
+        filterType: "select",
+        filterOptions: [
+          { value: "factory", label: "کارگر" },
+          { value: "office", label: "اداری" },
+          { value: "management", label: "مدیریت" },
+        ],
+        placeholder: "انتخاب سمت",
+      },
+      {
+        key: "mobilePhone",
+        label: "موبایل",
+        filterable: true,
+        filterType: "text",
+        placeholder: "جستجو موبایل",
+      },
     ],
     actions: {
       custom: [
@@ -353,9 +425,9 @@ const Deficit: React.FC = () => {
 
   const renderContent = () => {
     switch (currentView) {
-      case 'staff':
+      case "staff":
         return <DynamicTable ref={tableRef} config={staffTableConfig} />;
-      case 'deficits':
+      case "deficits":
         return <DynamicTable ref={tableRef} config={deficitTableConfig} />;
       default:
         return <DynamicTable ref={tableRef} config={staffTableConfig} />;
@@ -367,27 +439,27 @@ const Deficit: React.FC = () => {
       <div className="flex justify-between mb-4">
         <div className="flex gap-2">
           <button
-            onClick={() => setCurrentView('staff')}
+            onClick={() => setCurrentView("staff")}
             className={`px-4 py-2 rounded-md ${
-              currentView === 'staff'
-                ? 'bg-blue-500 text-white'
-                : 'bg-gray-200 text-gray-700'
+              currentView === "staff"
+                ? "bg-blue-500 text-white"
+                : "bg-gray-200 text-gray-700"
             }`}
           >
             کارمندان
           </button>
           <button
-            onClick={() => setCurrentView('deficits')}
+            onClick={() => setCurrentView("deficits")}
             className={`px-4 py-2 rounded-md ${
-              currentView === 'deficits'
-                ? 'bg-blue-500 text-white'
-                : 'bg-gray-200 text-gray-700'
+              currentView === "deficits"
+                ? "bg-blue-500 text-white"
+                : "bg-gray-200 text-gray-700"
             }`}
           >
             لیست کسورات
           </button>
         </div>
-        {currentView === 'deficits' && (
+        {currentView === "deficits" && (
           <button
             onClick={handleAddDeficit}
             className="bg-blue-500 text-white px-4 py-2 rounded-md flex items-center"

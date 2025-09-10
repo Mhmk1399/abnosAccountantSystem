@@ -29,8 +29,57 @@ export const GET = async (req: NextRequest) => {
   }
 
   try {
-    const staffMembers = await staff.find();
-    return NextResponse.json({ staff: staffMembers });
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "10");
+    const skip = (page - 1) * limit;
+
+    // Build filter conditions
+    const filterConditions: any = {};
+    const name = searchParams.get("name");
+    const personalNumber = searchParams.get("personalNumber");
+    const mobilePhone = searchParams.get("mobilePhone");
+    const contracthireDate = searchParams.get("contracthireDate");
+
+    if (name) filterConditions.name = { $regex: name, $options: "i" };
+    if (personalNumber) filterConditions.personalNumber = { $regex: personalNumber, $options: "i" };
+    if (mobilePhone) filterConditions.mobilePhone = { $regex: mobilePhone, $options: "i" };
+    
+    if (contracthireDate) {
+      try {
+        const range = JSON.parse(contracthireDate);
+        if (Array.isArray(range) && range.length === 2) {
+          const [startDate, endDate] = range;
+          if (startDate || endDate) {
+            filterConditions.contracthireDate = {};
+            if (startDate) filterConditions.contracthireDate.$gte = new Date(startDate);
+            if (endDate) filterConditions.contracthireDate.$lte = new Date(endDate);
+          }
+        }
+      } catch (e) {
+        console.log('Invalid contracthireDate filter format');
+      }
+    }
+
+    const staffMembers = await staff.find(filterConditions)
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    const totalCount = await staff.countDocuments(filterConditions);
+    const totalPages = Math.ceil(totalCount / limit);
+
+    return NextResponse.json({
+      staff: staffMembers,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems: totalCount,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       { error: "An error occurred: " + error },

@@ -26,9 +26,24 @@ const fetcher = async (
       data: result.totalAccounts || [],
       pagination: result.pagination || null,
     };
+  } else if (result.staff) {
+    return {
+      data: result.staff || [],
+      pagination: result.pagination || null,
+    };
   } else if (result.permissions) {
     return {
       data: result.permissions || [],
+      pagination: result.pagination || null,
+    };
+  } else if (result.deficit) {
+    return {
+      data: result.deficit || [],
+      pagination: result.pagination || null,
+    };
+  } else if (result.invoices) {
+    return {
+      data: result.invoices || [],
       pagination: result.pagination || null,
     };
   } else if (result.groupDetailAccounts) {

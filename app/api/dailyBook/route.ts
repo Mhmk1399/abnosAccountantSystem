@@ -2,7 +2,10 @@ import { NextResponse, NextRequest } from "next/server";
 import DailyBook from "@/models/dailyBook";
 import connect from "@/lib/data";
 import AccountBalance from "@/models/accounts/accountsBalance";
-import { createDailyBookEntry, createDailyBookFromTypeOfDailyBook } from "@/services/dailyBookCreatorService";
+import {
+  createDailyBookEntry,
+  createDailyBookFromTypeOfDailyBook,
+} from "@/services/dailyBookCreatorService";
 // GET: Retrieve all daily books
 export const GET = async (req: NextRequest) => {
   await connect();
@@ -45,7 +48,7 @@ export const POST = async (req: NextRequest) => {
     const body = await req.json();
 
     let dailyBook;
-    
+
     // If using daily book creator service
     if (body.useCreatorService) {
       if (body.typeOfDailyBookId) {
@@ -56,7 +59,7 @@ export const POST = async (req: NextRequest) => {
           debitDetailed: body.debitDetailed,
           creditDetailed: body.creditDetailed,
           documentNumber: body.documentNumber,
-          date: body.date
+          date: body.date,
         });
       } else if (body.debitEntry && body.creditEntry) {
         dailyBook = await createDailyBookEntry({
@@ -65,7 +68,7 @@ export const POST = async (req: NextRequest) => {
           description: body.description,
           typeOfDailyBook: body.typeOfDailyBook,
           documentNumber: body.documentNumber,
-          date: body.date
+          date: body.date,
         });
       } else {
         throw new Error("Invalid data for creator service");
@@ -82,7 +85,11 @@ export const POST = async (req: NextRequest) => {
       interface AccountBalance {
         accountLevel: "group" | "total" | "fixed" | "detailed";
         accountRef: string;
-        accountModel: "AccountGroup" | "TotalAccount" | "FixedAccount" | "DetailedAccount";
+        accountModel:
+          | "AccountGroup"
+          | "TotalAccount"
+          | "FixedAccount"
+          | "DetailedAccount";
         fiscalYear: string;
         totalDebit?: number;
         totalCredit?: number;
@@ -96,9 +103,17 @@ export const POST = async (req: NextRequest) => {
             { id: entry.accountGroup, model: "AccountGroup", level: "group" },
             { id: entry.totalAccount, model: "TotalAccount", level: "total" },
             { id: entry.fixedAccounts, model: "FixedAccount", level: "fixed" },
-            { id: entry.detailed1, model: "DetailedAccount", level: "detailed" },
-            { id: entry.detailed2, model: "DetailedAccount", level: "detailed" },
-          ].filter(acc => acc.id);
+            {
+              id: entry.detailed1,
+              model: "DetailedAccount",
+              level: "detailed",
+            },
+            {
+              id: entry.detailed2,
+              model: "DetailedAccount",
+              level: "detailed",
+            },
+          ].filter((acc) => acc.id);
           for (const acc of accounts) {
             balanceUpdates.push(
               AccountBalance.findOneAndUpdate(
@@ -117,7 +132,6 @@ export const POST = async (req: NextRequest) => {
                 },
                 { upsert: true, new: true }
               )
-            
             );
           }
         }
@@ -130,9 +144,17 @@ export const POST = async (req: NextRequest) => {
             { id: entry.accountGroup, model: "AccountGroup", level: "group" },
             { id: entry.totalAccount, model: "TotalAccount", level: "total" },
             { id: entry.fixedAccounts, model: "FixedAccount", level: "fixed" },
-            { id: entry.detailed1, model: "DetailedAccount", level: "detailed" },
-            { id: entry.detailed2, model: "DetailedAccount", level: "detailed" },
-          ].filter(acc => acc.id);
+            {
+              id: entry.detailed1,
+              model: "DetailedAccount",
+              level: "detailed",
+            },
+            {
+              id: entry.detailed2,
+              model: "DetailedAccount",
+              level: "detailed",
+            },
+          ].filter((acc) => acc.id);
 
           for (const acc of accounts) {
             balanceUpdates.push(

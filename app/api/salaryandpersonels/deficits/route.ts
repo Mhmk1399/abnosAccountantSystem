@@ -27,8 +27,62 @@ export const GET = async (req: NextRequest) => {
   }
 
   try {
-    const deficits = await deficit.find().populate('staff');
-    return NextResponse.json({ deficit: deficits });
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const skip = (page - 1) * limit;
+
+    // Build filter object
+    const filter: any = {};
+    
+    // Staff filter
+    const staffFilter = searchParams.get('staff.name');
+    if (staffFilter) {
+      filter.staff = staffFilter;
+    }
+
+    // Type filter
+    const typeFilter = searchParams.get('type');
+    if (typeFilter) {
+      filter.type = typeFilter;
+    }
+
+    // Amount range filter
+    const amountFilter = searchParams.get('amount');
+    if (amountFilter) {
+      try {
+        const [min, max] = JSON.parse(amountFilter);
+        if (min !== undefined || max !== undefined) {
+          filter.amount = {};
+          if (min !== undefined) filter.amount.$gte = min;
+          if (max !== undefined) filter.amount.$lte = max;
+        }
+      } catch (e) {
+        // Invalid JSON, ignore filter
+      }
+    }
+
+    const totalItems = await deficit.countDocuments(filter);
+    const deficits = await deficit
+      .find(filter)
+      .populate('staff')
+      .skip(skip)
+      .limit(limit)
+      .sort({ createdAt: -1 });
+
+    const totalPages = Math.ceil(totalItems / limit);
+
+    return NextResponse.json({
+      deficit: deficits,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems,
+        itemsPerPage: limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       { error: "An error occurred: " + error },

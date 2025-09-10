@@ -4,15 +4,23 @@ import DynamicTable from "@/components/global/DynamicTable";
 import { TableColumn } from "@/types/tables";
 
 const InventoryReport: React.FC = () => {
-
-
   // Define table columns
   const columns: TableColumn[] = [
-    { key: "name", label: "نام محصول", sortable: true },
+    {
+      key: "name",
+      label: "نام محصول",
+      sortable: true,
+      filterable: true,
+      filterType: "text",
+      placeholder: "جستجو در نام محصول",
+    },
     {
       key: "buyPrice",
       label: "مبلغ خرید",
       sortable: true,
+      filterable: true,
+      filterType: "numberRange",
+      placeholder: "مبلغ خرید",
       render: (value) => `${Number(value).toLocaleString()} تومان`,
     },
     {
@@ -32,7 +40,15 @@ const InventoryReport: React.FC = () => {
       render: (value) => {
         const remaining = Number(value);
         return (
-          <span className={remaining <= 0 ? "text-red-600 font-bold" : remaining <= 5 ? "text-yellow-600 font-bold" : "text-green-600"}>
+          <span
+            className={
+              remaining <= 0
+                ? "text-red-600 font-bold"
+                : remaining <= 5
+                ? "text-yellow-600 font-bold"
+                : "text-green-600"
+            }
+          >
             {remaining}
           </span>
         );
@@ -42,6 +58,9 @@ const InventoryReport: React.FC = () => {
       key: "totalArea",
       label: "متراژ کل",
       sortable: true,
+      filterable: true,
+      filterType: "numberRange",
+      placeholder: "متراژ کل",
       render: (value) => `${Number(value)} متر مربع`,
     },
     {
@@ -52,8 +71,6 @@ const InventoryReport: React.FC = () => {
     },
   ];
 
-
-
   return (
     <div className="p-6">
       <h2 className="text-2xl text-black font-bold my-4">گزارش موجودی</h2>
@@ -62,6 +79,7 @@ const InventoryReport: React.FC = () => {
           title: "گزارش موجودی",
           endpoint: "/api/reports/inventory",
           columns: columns,
+          enableFilters: true,
           responseHandler: (response) => {
             return response.inventoryReports || [];
           },

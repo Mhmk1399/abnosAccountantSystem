@@ -44,7 +44,11 @@ const Staff: React.FC = () => {
   const [modalConfig, setModalConfig] = useState<ModalConfig | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const tableRef = useRef<{ refreshData: () => void }>(null);
-
+  const positionLabels: Record<string, string> = {
+    factory: "کارگر",
+    office: "اداری",
+    management: "مدیریت",
+  };
   const handleAddClick = () => {
     setSelectedStaff(null);
     setSelectedItemId(null);
@@ -79,7 +83,12 @@ const Staff: React.FC = () => {
         { key: "homePhone", label: "تلفن ثابت" },
         { key: "mobilePhone", label: "موبایل" },
         { key: "workExperience", label: "سابقه کار" },
-        { key: "position", label: "موقعیت شغلی" },
+        {
+          key: "position",
+          label: "موقعیت شغلی",
+          render: (value: unknown, row: Record<string, unknown>) =>
+            positionLabels[value as string] || value || "-",
+        },
         { key: "workplace", label: "محل کار" },
         { key: "educationLevel", label: "سطح تحصیلات" },
         { key: "contracthireDate", label: "تاریخ شروع قرارداد", type: "date" },
@@ -89,36 +98,38 @@ const Staff: React.FC = () => {
         {
           key: "ismaried",
           label: "وضعیت تاهل",
-          render: (value: unknown) => (value ? "متاهل" : "مجرد"),
+          render: (value: unknown, row: Record<string, unknown>) =>
+            value ? "متاهل" : "مجرد",
         },
         {
           key: "baseSalary",
           label: "حقوق پایه",
-          render: (value: unknown) =>
+          render: (value: unknown, row: Record<string, unknown>) =>
             value ? Number(value).toLocaleString() : "-",
         },
         {
           key: "hourlywage",
           label: "دستمزد ساعتی",
-          render: (value: unknown) =>
+          render: (value: unknown, row: Record<string, unknown>) =>
             value ? Number(value).toLocaleString() : "-",
         },
         {
           key: "housingAllowance",
           label: "کمک مسکن",
-          render: (value: unknown) =>
+          render: (value: unknown, row: Record<string, unknown>) =>
             value ? Number(value).toLocaleString() : "-",
         },
         {
           key: "workerVoucher",
           label: "بن کارگری",
-          render: (value: unknown) =>
+          render: (value: unknown, row: Record<string, unknown>) =>
             value ? Number(value).toLocaleString() : "-",
         },
         {
           key: "isActive",
           label: "وضعیت فعالیت",
-          render: (value: unknown) => (value ? "فعال" : "غیرفعال"),
+          render: (value: unknown, row: Record<string, unknown>) =>
+            value ? "فعال" : "غیرفعال",
         },
       ],
       onClose: handleCloseModal,
@@ -171,23 +182,47 @@ const Staff: React.FC = () => {
 
   const staffTableConfig: TableConfig = {
     endpoint: "/api/salaryandpersonels/staff",
-    responseHandler: (res) => res.staff,
+    responseHandler: (res) => res.staff || res,
     title: "لیست کارمندان",
     description: "مدیریت کارمندان",
+    enableFilters: true,
     columns: [
-      { key: "name", label: "نام", sortable: true },
+      {
+        key: "name",
+        label: "نام",
+        sortable: true,
+        filterable: true,
+        filterType: "text",
+        placeholder: "جستجو نام",
+      },
       { key: "fatherName", label: "نام پدر" },
-      { key: "personalNumber", label: "شماره پرسنلی" },
+      {
+        key: "personalNumber",
+        label: "شماره پرسنلی",
+        filterable: true,
+        filterType: "text",
+        placeholder: "جستجو شماره پرسنلی",
+      },
       { key: "nationalId", label: "کد ملی", sortable: true },
-      { key: "position", label: "موقعیت شغلی" },
-      { key: "mobilePhone", label: "موبایل" },
+      {
+        key: "position",
+        label: "موقعیت شغلی",
+        render: (value: unknown, row: Record<string, unknown>) =>
+          positionLabels[value as string] || value || "-",
+      },
+      {
+        key: "mobilePhone",
+        label: "موبایل",
+        filterable: true,
+        filterType: "text",
+        placeholder: "جستجو موبایل",
+      },
       {
         key: "workExperience",
         label: "سابقه کار",
-        render: (value: unknown, row: Staff) => {
-          console.log(value);
+        render: (value: unknown, row: Record<string, unknown>) => {
           if (row.contracthireDate) {
-            const hireDate = new Date(row.contracthireDate);
+            const hireDate = new Date(row.contracthireDate as string);
             const now = new Date();
 
             if (hireDate > now) return "تاریخ نامعتبر";
@@ -222,31 +257,35 @@ const Staff: React.FC = () => {
         label: "تاریخ استخدام",
         type: "date",
         sortable: true,
+        filterable: true,
+        filterType: "dateRange",
+        placeholder: "انتخاب تاریخ",
       },
       { key: "contractendDate", label: "تاریخ پایان قرارداد", type: "date" },
       {
         key: "baseSalary",
         label: "حقوق پایه",
-        render: (value: unknown) =>
+        render: (value: unknown, row: Record<string, unknown>) =>
           value ? Number(value).toLocaleString() : "-",
       },
       {
         key: "annualrewards",
         label: "پاداش سالانه",
-        render: (value: unknown) =>
+        render: (value: unknown, row: Record<string, unknown>) =>
           value ? Number(value).toLocaleString() : "-",
       },
       {
         key: "hourlywage",
         label: "دستمزد ساعتی",
-        render: (value: unknown) =>
+        render: (value: unknown, row: Record<string, unknown>) =>
           value ? Number(value).toLocaleString() : "-",
       },
       {
         key: "isActive",
         label: "وضعیت",
         type: "boolean",
-        render: (value: boolean) => (value ? "فعال" : "غیرفعال"),
+        render: (value: unknown, row: Record<string, unknown>) =>
+          value ? "فعال" : "غیرفعال",
       },
     ],
     actions: {
@@ -362,7 +401,7 @@ const Staff: React.FC = () => {
         label: "سابقه کار",
         type: "text",
         computed: true,
-        computeValue: (formData) => {
+        computeValue: (formData: Record<string, unknown>) => {
           if (formData.contracthireDate) {
             const hireDate = new Date(String(formData.contracthireDate));
             const now = new Date();
